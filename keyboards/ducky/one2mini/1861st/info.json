@@ -7,10 +7,12 @@
         "device_version": "0.0.1"
     },
     "layout_aliases": {
+        "LAYOUT_all": "LAYOUT_60_all",
+        "LAYOUT_ansi": "LAYOUT_60_ansi",
         "LAYOUT_iso": "LAYOUT_60_iso"
     },
     "layouts": {
-        "LAYOUT_all": {
+        "LAYOUT_60_all": {
             "layout": [
                 { "x": 0, "y": 0, "w": 1, "label": "ESC" },
                 { "x": 1, "y": 0, "w": 1, "label": "1" },
