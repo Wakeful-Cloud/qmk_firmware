@@ -419,7 +419,7 @@ endif
 
 RGB_MATRIX_ENABLE ?= no
 
-VALID_RGB_MATRIX_TYPES := AW20216 IS31FL3731 IS31FL3733 IS31FL3737 IS31FL3741 IS31FL3742A IS31FL3743A IS31FL3745 IS31FL3746A CKLED2001 WS2812 custom
+VALID_RGB_MATRIX_TYPES := AW20216 IS31FL3731 IS31FL3733 IS31FL3737 IS31FL3741 IS31FL3742A IS31FL3743A IS31FL3745 IS31FL3746A CKLED2001 WS2812 MBI5042 custom
 ifeq ($(strip $(RGB_MATRIX_ENABLE)), yes)
     ifeq ($(filter $(RGB_MATRIX_DRIVER),$(VALID_RGB_MATRIX_TYPES)),)
         $(call CATASTROPHIC_ERROR,Invalid RGB_MATRIX_DRIVER,RGB_MATRIX_DRIVER="$(RGB_MATRIX_DRIVER)" is not a valid matrix type)
@@ -512,6 +512,33 @@ endif
     ifeq ($(strip $(RGB_MATRIX_DRIVER)), WS2812)
         OPT_DEFS += -DWS2812
         WS2812_DRIVER_REQUIRED := yes
+    endif
+
+    ifeq ($(strip $(RGB_MATRIX_DRIVER)), MBI5042)
+        NUC123BSP_PATH = $(LIB_PATH)/nuc123bsp
+
+        OPT_DEFS += -DMBI5042
+        COMMON_VPATH += $(DRIVER_PATH)/led $(NUC123BSP_PATH)/Library/Device/Nuvoton/NUC123/Include \
+            $(NUC123BSP_PATH)/Library/StdDriver
+        SRC += mbi5042.c \
+            $(NUC123BSP_PATH)/Library/StdDriver/src/adc.c \
+            $(NUC123BSP_PATH)/Library/StdDriver/src/clk.c \
+            $(NUC123BSP_PATH)/Library/StdDriver/src/crc.c \
+            $(NUC123BSP_PATH)/Library/StdDriver/src/fmc.c \
+            $(NUC123BSP_PATH)/Library/StdDriver/src/gpio.c \
+            $(NUC123BSP_PATH)/Library/StdDriver/src/i2c.c \
+            $(NUC123BSP_PATH)/Library/StdDriver/src/i2s.c \
+            $(NUC123BSP_PATH)/Library/StdDriver/src/pdma.c \
+            $(NUC123BSP_PATH)/Library/StdDriver/src/ps2.c \
+            $(NUC123BSP_PATH)/Library/StdDriver/src/pwm.c \
+            $(NUC123BSP_PATH)/Library/StdDriver/src/retarget.c \
+            $(NUC123BSP_PATH)/Library/StdDriver/src/spi.c \
+            $(NUC123BSP_PATH)/Library/StdDriver/src/sys.c \
+            $(NUC123BSP_PATH)/Library/StdDriver/src/timer.c \
+            $(NUC123BSP_PATH)/Library/StdDriver/src/uart.c \
+            $(NUC123BSP_PATH)/Library/StdDriver/src/usbd.c \
+            $(NUC123BSP_PATH)/Library/StdDriver/src/wdt.c \
+            $(NUC123BSP_PATH)/Library/StdDriver/src/wwdt.c
     endif
 
     ifeq ($(strip $(RGB_MATRIX_DRIVER)), APA102)
@@ -610,6 +637,13 @@ endif
 ifeq ($(strip $(CIE1931_CURVE)), yes)
     OPT_DEFS += -DUSE_CIE1931_CURVE
     LED_TABLES := yes
+    ifeq ($(strip $(RGB_MATRIX_DRIVER)), MBI5042)
+        OPT_DEFS += -DUSE_CIE1931_16_CURVE
+        LED_TABLES = yes
+    else
+        OPT_DEFS += -DUSE_CIE1931_CURVE
+        LED_TABLES = yes
+    endif
 endif
 
 ifeq ($(strip $(LED_TABLES)), yes)

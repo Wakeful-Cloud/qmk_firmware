@@ -1,0 +1,114 @@
+diff --git a/Library/Device/Nuvoton/NUC123/Include/NUC123.h b/Library/Device/Nuvoton/NUC123/Include/NUC123.h
+index 8df58f6..7c92d99 100644
+--- a/Library/Device/Nuvoton/NUC123/Include/NUC123.h
++++ b/Library/Device/Nuvoton/NUC123/Include/NUC123.h
+@@ -8740,23 +8740,23 @@ typedef volatile unsigned long  vu32;       ///< Define 32-bit unsigned volatile
+ /******************************************************************************/
+ /*                         Peripheral header files                            */
+ /******************************************************************************/
+-#include "sys.h"
+-#include "adc.h"
+-#include "fmc.h"
+-#include "gpio.h"
+-#include "i2c.h"
+-#include "pwm.h"
+-#include "spi.h"
+-#include "timer.h"
+-#include "wdt.h"
+-#include "wwdt.h"
+-#include "uart.h"
+-#include "i2s.h"
+-#include "usbd.h"
+-#include "pdma.h"
+-#include "ps2.h"
+-#include "clk.h"
+-#include "crc.h"
++#include "inc/sys.h"
++#include "inc/adc.h"
++#include "inc/fmc.h"
++#include "inc/gpio.h"
++#include "inc/i2c.h"
++#include "inc/pwm.h"
++#include "inc/spi.h"
++#include "inc/timer.h"
++#include "inc/wdt.h"
++#include "inc/wwdt.h"
++#include "inc/uart.h"
++#include "inc/i2s.h"
++#include "inc/usbd.h"
++#include "inc/pdma.h"
++#include "inc/ps2.h"
++#include "inc/clk.h"
++#include "inc/crc.h"
+ #endif
+ 
+ 
+diff --git a/Library/StdDriver/src/pdma.c b/Library/StdDriver/src/pdma.c
+index ebe9fe2..63458e7 100644
+--- a/Library/StdDriver/src/pdma.c
++++ b/Library/StdDriver/src/pdma.c
+@@ -158,9 +158,9 @@ void PDMA_SetTransferMode(uint32_t u32Ch, uint32_t u32Peripheral, uint32_t u32Sc
+     if(u32Peripheral > PDMA_PWM3_RX) /* Memory-to-Memory */
+         pdma->CSR = (pdma->CSR & ~(PDMA_CSR_MODE_SEL_Msk));
+     else if(u32Peripheral > PDMA_I2S_TX) /* Peripheral-to-Memory */
+-        pdma->CSR = (pdma->CSR & ~(PDMA_CSR_MODE_SEL_Msk) | (0x1 << PDMA_CSR_MODE_SEL_Pos));
++        pdma->CSR = ((pdma->CSR & ~(PDMA_CSR_MODE_SEL_Msk)) | (0x1 << PDMA_CSR_MODE_SEL_Pos));
+     else /* Memory-to-Peripheral */
+-        pdma->CSR = (pdma->CSR & ~(PDMA_CSR_MODE_SEL_Msk) | (0x2 << PDMA_CSR_MODE_SEL_Pos));
++        pdma->CSR = ((pdma->CSR & ~(PDMA_CSR_MODE_SEL_Msk)) | (0x2 << PDMA_CSR_MODE_SEL_Pos));
+ 
+     switch(u32Peripheral)
+     {
+diff --git a/Library/StdDriver/src/ps2.c b/Library/StdDriver/src/ps2.c
+index 77b0b8d..dcc6bca 100644
+--- a/Library/StdDriver/src/ps2.c
++++ b/Library/StdDriver/src/ps2.c
+@@ -16,7 +16,7 @@
+ /*---------------------------------------------------------------------------------------------------------*/
+ /* Includes of local headers                                                                               */
+ /*---------------------------------------------------------------------------------------------------------*/
+-#include "ps2.h"
++#include "inc/ps2.h"
+ 
+ 
+ /** @addtogroup Standard_Driver Standard Driver
+diff --git a/Library/StdDriver/src/retarget.c b/Library/StdDriver/src/retarget.c
+index eeb9fc8..40b5d48 100644
+--- a/Library/StdDriver/src/retarget.c
++++ b/Library/StdDriver/src/retarget.c
+@@ -45,14 +45,14 @@ enum { r0, r1, r2, r3, r12, lr, pc, psr};
+  */
+ static void stackDump(uint32_t stack[])
+ {   
+-    printf("r0  = 0x%x\n", stack[r0]);
+-    printf("r1  = 0x%x\n", stack[r1]);
+-    printf("r2  = 0x%x\n", stack[r2]);
+-    printf("r3  = 0x%x\n", stack[r3]);
+-    printf("r12 = 0x%x\n", stack[r12]);
+-    printf("lr  = 0x%x\n", stack[lr]);
+-    printf("pc  = 0x%x\n", stack[pc]);
+-    printf("psr = 0x%x\n", stack[psr]);
++    printf("r0  = 0x%lx\n", stack[r0]);
++    printf("r1  = 0x%lx\n", stack[r1]);
++    printf("r2  = 0x%lx\n", stack[r2]);
++    printf("r3  = 0x%lx\n", stack[r3]);
++    printf("r12 = 0x%lx\n", stack[r12]);
++    printf("lr  = 0x%lx\n", stack[lr]);
++    printf("pc  = 0x%lx\n", stack[pc]);
++    printf("psr = 0x%lx\n", stack[psr]);
+ }
+ 
+ /**
+diff --git a/Library/StdDriver/src/spi.c b/Library/StdDriver/src/spi.c
+index a31064f..1dd0511 100644
+--- a/Library/StdDriver/src/spi.c
++++ b/Library/StdDriver/src/spi.c
+@@ -345,7 +345,7 @@ uint32_t SPI_SetBusClock(SPI_T *spi, uint32_t u32BusClock)
+   */
+ void SPI_EnableFIFO(SPI_T *spi, uint32_t u32TxThreshold, uint32_t u32RxThreshold)
+ {
+-    spi->FIFO_CTL = (spi->FIFO_CTL & ~(SPI_FIFO_CTL_TX_THRESHOLD_Msk | SPI_FIFO_CTL_RX_THRESHOLD_Msk) |
++    spi->FIFO_CTL = ((spi->FIFO_CTL & ~(SPI_FIFO_CTL_TX_THRESHOLD_Msk | SPI_FIFO_CTL_RX_THRESHOLD_Msk)) |
+                      (u32TxThreshold << SPI_FIFO_CTL_TX_THRESHOLD_Pos) |
+                      (u32RxThreshold << SPI_FIFO_CTL_RX_THRESHOLD_Pos));
+ 

@@ -17,7 +17,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #pragma once
 
-
 /*
  * Keyboard Matrix Assignments
  *
@@ -27,14 +26,22 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
  * DIODE_DIRECTION: COL2ROW = COL = Anode (+), ROW = Cathode (-, marked on diode)
  *                  ROW2COL = ROW = Anode (+), COL = Cathode (-, marked on diode)
  *
-*/
+ */
+
+//Matrix config
+#define MATRIX_ROWS 5
+#define MATRIX_COLS 15
 #define MATRIX_ROW_PINS { D11, B4, B5, B6, B7 }
-#define MATRIX_COL_PINS { B10, B9, C13, C12, C11, C10, C9, C8, A15, A14, A13, D0, D1, D2,B15,B8 }
+#define MATRIX_COL_PINS { B10, B9, C13, C12, C11, C10, C9, C8, A15, A14, A13, D0, D1, D2, B15/*, B8*/ }
 #define DIP_SWITCH_MATRIX_GRID { {0,14}, {1,14}, {2,14}, {3,14} }
 
-/* COL2ROW, ROW2COL*/
-#define DIODE_DIRECTION COL2ROW
-
+//Input config
 #define FORCE_NKRO
-
 #define GPIO_INPUT_PIN_DELAY (NUC123_HCLK / 6 / 1000000L)
+
+//RGB config
+#define DIODE_DIRECTION COL2ROW
+#define RGB_MATRIX_LED_COUNT 75
+#define RGB_MATRIX_KEYPRESSES
+#define RGB_MATRIX_FRAMEBUFFER_EFFECTS
+#define USB_LED_CAPSLOCK_INDEX 30 //Location of caps lock LED in matrix

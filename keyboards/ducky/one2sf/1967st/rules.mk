@@ -28,7 +28,10 @@ NKRO_ENABLE = yes           # Enable N-Key Rollover
 BACKLIGHT_ENABLE = no       # Enable keyboard backlight functionality
 RGBLIGHT_ENABLE = no        # Enable keyboard RGB underglow
 AUDIO_ENABLE = no           # Audio output
-DIP_SWITCH_ENABLE = yes
+DIP_SWITCH_ENABLE = yes     # Enable dip switches
+CIE1931_CURVE = no 				  # Use the 16-bit CIE1931 curve instead
+RGB_MATRIX_ENABLE = yes     # Use RGB matrix
+RGB_MATRIX_DRIVER = MBI5042 # Use the MBI5041/MBI5042/MBI5043 driver
 
 # Enter lower-power sleep mode when on the ChibiOS idle thread
 OPT_DEFS += -DCORTEX_ENABLE_WFI_IDLE=TRUE
