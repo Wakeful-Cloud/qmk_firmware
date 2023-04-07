@@ -1,11 +1,11 @@
 # One 2 Mini (DKON1861ST)
 
-![one2mini](https://www.duckychannel.com.tw/upload/2019_05_112/20190511120502dgnhbl7NU1.png)
+![One 2 Mini](https://www.duckychannel.com.tw/upload/2019_05_112/20190511120502dgnhbl7NU1.png)
 
 A 60% keyboard made by Ducky Channel.
 
 * Keyboard Maintainer: [Reza Jelveh](https://github.com/fishman)
-* Hardware Supported: Ducky One 2 Mini RGB / NUC123SD4AN0 / MBI5042
+* Hardware Supported: Ducky One 2 Mini RGB (DKON1861ST) + NUC123SD4AN0 + MBI5042GP
 * Hardware Availability: [Ducky Channel](https://www.duckychannel.com.tw/en/Ducky-One2-Mini-RGB)
     * RGB LEDs are currently disabled until the driver is merged.
 

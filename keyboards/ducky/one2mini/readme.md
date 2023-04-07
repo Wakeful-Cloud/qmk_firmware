@@ -1,7 +1,11 @@
-# one2mini
+# One 2 Mini
 
-![one2mini](http://www.duckychannel.com.tw/page-en/One_2_Mini_RGB/images/One2_Mini_01_02.jpg)
+![One 2 Mini](https://www.duckychannel.com.tw/upload/2019_05_112/20190511120502dgnhbl7NU1.png)
 
-A 60% keyboard featuring per-key RGB LEDs.
+A 60% keyboard made by Ducky Channel.
 
-See child directories for compatible boards.
+The only supported keyboard version at this time is the DKON1861ST.
+
+* Hardware Supported:
+  * [DKON1861ST](1861st/), NUC123SD4AN0 + MBI5042GP
+z
