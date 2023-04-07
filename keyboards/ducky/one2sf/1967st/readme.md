@@ -1,15 +1,17 @@
 # One 2 SF (DKON1967ST)
 
-A 65% keyboard by Ducky.
+![one2sf](https://www.duckychannel.com.tw/upload/2019_05_142/201905141721227o2fxn6LX1.png)
+
+A 65% keyboard made by Ducky Channel.
 
 This firmware was tested on the Ducky One 2 SF 1967ST version.
 
 * Keyboard Maintainer: [f7urry](https://github.com/f7urry)
 * Hardware Supported: Ducky One 2 SF RGB (DKON1967ST), NUC123SD4AN0 + MBI5043GP
-  * Only ANSI layout is supported at this time (ISO & VIA still WIP).
-  * RGB LEDs are currently disabled until the driver is merged.
+* Hardware Availability: [Ducky Channel](https://www.duckychannel.com.tw/en/Ducky-One2-SF)
+    * RGB LEDs are currently disabled until the driver is merged.
 
-## Compiling the Firmware:
+## Compiling the Firmware
 
     make ducky/one2sf/1967st:default
 
