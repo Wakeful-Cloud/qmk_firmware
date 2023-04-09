@@ -8,4 +8,3 @@ The only supported keyboard version at this time is the DKON1861ST.
 
 * Hardware Supported:
   * [DKON1861ST](1861st/), NUC123SD4AN0 + MBI5042GP
-z
