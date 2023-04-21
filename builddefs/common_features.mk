@@ -419,7 +419,7 @@ endif
 
 RGB_MATRIX_ENABLE ?= no
 
-VALID_RGB_MATRIX_TYPES := AW20216 IS31FL3731 IS31FL3733 IS31FL3737 IS31FL3741 IS31FL3742A IS31FL3743A IS31FL3745 IS31FL3746A CKLED2001 WS2812 MBI5042 custom
+VALID_RGB_MATRIX_TYPES := AW20216 IS31FL3731 IS31FL3733 IS31FL3737 IS31FL3741 IS31FL3742A IS31FL3743A IS31FL3745 IS31FL3746A CKLED2001 WS2812 MBI5043 custom
 ifeq ($(strip $(RGB_MATRIX_ENABLE)), yes)
     ifeq ($(filter $(RGB_MATRIX_DRIVER),$(VALID_RGB_MATRIX_TYPES)),)
         $(call CATASTROPHIC_ERROR,Invalid RGB_MATRIX_DRIVER,RGB_MATRIX_DRIVER="$(RGB_MATRIX_DRIVER)" is not a valid matrix type)
@@ -514,13 +514,13 @@ endif
         WS2812_DRIVER_REQUIRED := yes
     endif
 
-    ifeq ($(strip $(RGB_MATRIX_DRIVER)), MBI5042)
+    ifeq ($(strip $(RGB_MATRIX_DRIVER)), MBI5043)
         NUC123BSP_PATH = $(LIB_PATH)/nuc123bsp
 
-        OPT_DEFS += -DMBI5042
+        OPT_DEFS += -DMBI5043
         COMMON_VPATH += $(DRIVER_PATH)/led $(NUC123BSP_PATH)/Library/Device/Nuvoton/NUC123/Include \
             $(NUC123BSP_PATH)/Library/StdDriver
-        SRC += mbi5042.c \
+        SRC += mbi5043.c \
             $(NUC123BSP_PATH)/Library/StdDriver/src/adc.c \
             $(NUC123BSP_PATH)/Library/StdDriver/src/clk.c \
             $(NUC123BSP_PATH)/Library/StdDriver/src/crc.c \
@@ -637,7 +637,7 @@ endif
 ifeq ($(strip $(CIE1931_CURVE)), yes)
     OPT_DEFS += -DUSE_CIE1931_CURVE
     LED_TABLES := yes
-    ifeq ($(strip $(RGB_MATRIX_DRIVER)), MBI5042)
+    ifeq ($(strip $(RGB_MATRIX_DRIVER)), MBI5043)
         OPT_DEFS += -DUSE_CIE1931_16_CURVE
         LED_TABLES = yes
     else

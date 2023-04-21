@@ -27,31 +27,31 @@ typedef struct mbi_led {
 
 extern const mbi_led g_mbi_leds[RGB_MATRIX_LED_COUNT];
 
-/* #define MBI5042_CFGREG_DEFAULT 0x002b0ul */
-#define MBI5042_CFGREG_DEFAULT 0b1000010000000000u
+/* #define MBI5043_CFGREG_DEFAULT 0x002b0ul */
+#define MBI5043_CFGREG_DEFAULT 0b1000010000000000u
 
-#define MBI5042_GCLK_GPIO PA12
-#define MBI5042_GCLK_SRC PWM0
-#define MBI5042_GCLK_SPD 4000000
-#define MBI5042_DCLK_GPIO PD4
-#define MBI5042_LE PD3
+#define MBI5043_GCLK_GPIO PA12
+#define MBI5043_GCLK_SRC PWM0
+#define MBI5043_GCLK_SPD 4000000
+#define MBI5043_DCLK_GPIO PD4
+#define MBI5043_LE PD3
 
-#define MBI5042_ROW_COUNT 5
-#define MBI5042_REFRESH_SPD 2000
+#define MBI5043_ROW_COUNT 5
+#define MBI5043_REFRESH_SPD 2000
 
-void MBI5042_init(void);
+void MBI5043_init(void);
 
-void MBI5042_set_current_gain(uint8_t gain);
-void MBI5042_write_config_register(uint16_t regValue);
+void MBI5043_set_current_gain(uint8_t gain);
+void MBI5043_write_config_register(uint16_t regValue);
 
-void MBI5042_set_color(int index, uint8_t red, uint8_t green, uint8_t blue);
-void MBI5042_set_color_all(uint8_t red, uint8_t green, uint8_t blue);
+void MBI5043_set_color(int index, uint8_t red, uint8_t green, uint8_t blue);
+void MBI5043_set_color_all(uint8_t red, uint8_t green, uint8_t blue);
 
-void MBI5042_update_pwm_buffers(void);
-void MBI5042_write_pwm_buffers(void);
+void MBI5043_update_pwm_buffers(void);
+void MBI5043_write_pwm_buffers(void);
 
-void MBI5042_planar_recode(int row, int column, uint8_t red, uint8_t green, uint8_t blue);
+void MBI5043_planar_recode(int row, int column, uint8_t red, uint8_t green, uint8_t blue);
 
-void MBI5042_disable_rows(void);
-void MBI5042_disable_row(int row);
-void MBI5042_enable_row(int row);
+void MBI5043_disable_rows(void);
+void MBI5043_disable_row(int row);
+void MBI5043_enable_row(int row);

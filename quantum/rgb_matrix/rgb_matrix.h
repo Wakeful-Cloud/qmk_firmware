@@ -41,8 +41,8 @@
 #    include "aw20216.h"
 #elif defined(WS2812)
 #    include "ws2812.h"
-#elif defined (MBI5042)
-#    include "mbi5042.h"
+#elif defined (MBI5043)
+#    include "mbi5043.h"
 #endif
 
 #ifndef RGB_MATRIX_LED_FLUSH_LIMIT
