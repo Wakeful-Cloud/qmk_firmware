@@ -1,4 +1,0 @@
-PA.12 = 3.4 V @ 2.000 MHz (GCLK)
-PB.14 = 3.4 V @ 769 KHz (SDI)
-PD.3 = 3.4 V @ 87kHz (LE)
-PD.4 = 2 V @ 1.408 MHz (DCLK)

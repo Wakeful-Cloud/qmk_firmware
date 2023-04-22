@@ -19,7 +19,7 @@ make ducky/one2sf/1967st:default
 
 ## Accessing Bootloader Mode
 
-To enter the 1967ST bootloader to flash, boot the keyboard while holding D+L.
+To enter the 1967ST bootloader to flash, boot the keyboard while holding `D` and `L`.
 
 ## Flashing the Firmware
 
@@ -36,6 +36,12 @@ Alternatively you can use elfmimi's [nu-isp-cli](https://lib.rs/crates/nu-isp-cl
 cargo install nu-isp-cli
 nu-isp-cli flash ducky_one2sf_ansi.bin
 ```
+
+* If you get `Are you sure device is plugged in and in bootloader mode?`, try the below (in order):
+    * If your backlight is on or you can still type, hold `D` and `L` while plugging in the keyboard
+    * Double-check you added the [udev rules](https://github.com/elfmimi/nu-isp-rs/tree/master/nu-isp-cli#linux) (**Linux only**)
+    * Run the flash command as an administrator/root
+    * Flash the original firmware using the Ducky firmware utility and try again
 
 See the [build environment setup](https://docs.qmk.fm/#/getting_started_build_tools) and the [make instructions](https://docs.qmk.fm/#/getting_started_make_guide) for more information. Brand new to QMK? Start with our [Complete Newbs Guide](https://docs.qmk.fm/#/newbs).
 
@@ -100,3 +106,20 @@ dd if=UTILITY_PATH of=firmware.bin bs=1 skip=$startAddress count=$(($endAddress 
 ```
 nu-isp-cli flash firmware.bin
 ```
+
+## Electrical Information
+
+### Pinout
+
+* `PA.12`: 3.4 V @ 2.000 MHz (GCLK)
+* `PB.12`: 3.4 V @ 769 KHz (U8 SDI/Blue)
+* `PB.13`: 3.4 V @ 769 KHz (U7 SDI/Green)
+* `PB.14`: 3.4 V @ 769 KHz (U3 SDI/Red)
+* `PD.3`: 3.4 V @ 87 kHz (LE)
+* `PD.4`: 2 V @ 1.408 MHz (DCLK)
+
+
+### RGB Matrix
+
+* Red, green, and blue channels are shorted vertically
+* Common positive is are shorted horizontally
