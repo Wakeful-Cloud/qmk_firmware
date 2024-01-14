@@ -1,10 +1,10 @@
 /* Copyright 2017 Jason Williams
  * Copyright 2017 Jack Humbert
  * Copyright 2018 Yiancar
+ * Copyright 2019 /u/KeepItUnder
  *
  * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 2 of the License, or
+ * it under the terms of the GNU General Public License as published by * the Free Software Foundation, either version 2 of the License, or
  * (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
@@ -42,6 +42,8 @@
 #    include "snled27351.h"
 #elif defined(RGB_MATRIX_AW20216S)
 #    include "aw20216s.h"
+#elif defined(RGB_MATRIX_MBI5043)
+#    include "mbi5043.h"
 #elif defined(RGB_MATRIX_WS2812)
 #    include "ws2812.h"
 #endif

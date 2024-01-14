@@ -440,7 +440,7 @@ endif
 
 RGB_MATRIX_ENABLE ?= no
 
-VALID_RGB_MATRIX_TYPES := aw20216s is31fl3218 is31fl3731 is31fl3733 is31fl3736 is31fl3737 is31fl3741 is31fl3742a is31fl3743a is31fl3745 is31fl3746a snled27351 ws2812 custom
+VALID_RGB_MATRIX_TYPES := aw20216s is31fl3218 is31fl3731 is31fl3733 is31fl3736 is31fl3737 is31fl3741 is31fl3742a is31fl3743a is31fl3745 is31fl3746a snled27351 mbi5043 ws2812 custom
 ifeq ($(strip $(RGB_MATRIX_ENABLE)), yes)
     ifeq ($(filter $(RGB_MATRIX_DRIVER),$(VALID_RGB_MATRIX_TYPES)),)
         $(call CATASTROPHIC_ERROR,Invalid RGB_MATRIX_DRIVER,RGB_MATRIX_DRIVER="$(RGB_MATRIX_DRIVER)" is not a valid matrix type)
@@ -535,6 +535,12 @@ ifeq ($(strip $(RGB_MATRIX_ENABLE)), yes)
         SRC += snled27351.c
     endif
 
+	ifeq ($(strip $(RGB_MATRIX_DRIVER)), mbi5043)
+		SPI_DRIVER_REQUIRED = yes
+		COMMON_VPATH += $(DRIVER_PATH)/led
+		SRC += mbi5043.c
+	endif
+
     ifeq ($(strip $(RGB_MATRIX_DRIVER)), ws2812)
         WS2812_DRIVER_REQUIRED := yes
     endif
@@ -600,12 +606,17 @@ ifeq ($(strip $(BACKLIGHT_ENABLE)), yes)
 endif
 
 ifeq ($(strip $(CIE1931_CURVE)), yes)
-    OPT_DEFS += -DUSE_CIE1931_CURVE
-    LED_TABLES := yes
+    ifeq ($(strip $(RGB_MATRIX_DRIVER)), mbi5043)
+        OPT_DEFS += -DUSE_CIE1931_16_CURVE
+        LED_TABLES := yes
+    else
+        OPT_DEFS += -DUSE_CIE1931_CURVE
+        LED_TABLES := yes
+    endif
 endif
 
 ifeq ($(strip $(LED_TABLES)), yes)
-    SRC += $(QUANTUM_DIR)/led_tables.c
+	SRC += $(QUANTUM_DIR)/led_tables.c
 endif
 
 ifeq ($(strip $(VIA_ENABLE)), yes)

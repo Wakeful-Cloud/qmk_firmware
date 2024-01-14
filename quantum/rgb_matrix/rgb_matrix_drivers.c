@@ -96,6 +96,14 @@ const rgb_matrix_driver_t rgb_matrix_driver = {
     .set_color_all = aw20216s_set_color_all,
 };
 
+#elif defined(MBI5043)
+const rgb_matrix_driver_t rgb_matrix_driver = {
+    .init = mbi5043_init_drivers,
+    .flush = mbi5043_flush,
+    .set_color = mbi5043_set_color,
+    .set_color_all = mbi5043_set_color_all,
+};
+
 #elif defined(RGB_MATRIX_WS2812)
 #    if defined(RGBLIGHT_WS2812)
 #        pragma message "Cannot use RGBLIGHT and RGB Matrix using WS2812 at the same time."

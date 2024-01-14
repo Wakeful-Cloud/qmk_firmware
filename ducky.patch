@@ -1,0 +1,4246 @@
+diff --git a/.gitmodules b/.gitmodules
+index 7d8dbcb4ed..0610404e06 100644
+--- a/.gitmodules
++++ b/.gitmodules
+@@ -25,3 +25,7 @@
+ 	path = lib/lvgl
+ 	url = https://github.com/qmk/lvgl.git
+ 	branch = release/v8.2
++[submodule "lib/nuc123bsp"]
++	path = lib/nuc123bsp
++	url = https://github.com/OpenNuvoton/NUC123BSP.git
++	branch = master
+diff --git a/builddefs/common_features.mk b/builddefs/common_features.mk
+index 0880934e95..a9a8f443e6 100644
+--- a/builddefs/common_features.mk
++++ b/builddefs/common_features.mk
+@@ -419,7 +419,7 @@ endif
+ 
+ RGB_MATRIX_ENABLE ?= no
+ 
+-VALID_RGB_MATRIX_TYPES := AW20216 IS31FL3731 IS31FL3733 IS31FL3737 IS31FL3741 IS31FL3742A IS31FL3743A IS31FL3745 IS31FL3746A CKLED2001 WS2812 custom
++VALID_RGB_MATRIX_TYPES := AW20216 IS31FL3731 IS31FL3733 IS31FL3737 IS31FL3741 IS31FL3742A IS31FL3743A IS31FL3745 IS31FL3746A CKLED2001 WS2812 MBI5043 custom
+ ifeq ($(strip $(RGB_MATRIX_ENABLE)), yes)
+     ifeq ($(filter $(RGB_MATRIX_DRIVER),$(VALID_RGB_MATRIX_TYPES)),)
+         $(call CATASTROPHIC_ERROR,Invalid RGB_MATRIX_DRIVER,RGB_MATRIX_DRIVER="$(RGB_MATRIX_DRIVER)" is not a valid matrix type)
+@@ -514,6 +514,33 @@ endif
+         WS2812_DRIVER_REQUIRED := yes
+     endif
+ 
++    ifeq ($(strip $(RGB_MATRIX_DRIVER)), MBI5043)
++        NUC123BSP_PATH = $(LIB_PATH)/nuc123bsp
++
++        OPT_DEFS += -DMBI5043
++        COMMON_VPATH += $(DRIVER_PATH)/led $(NUC123BSP_PATH)/Library/Device/Nuvoton/NUC123/Include \
++            $(NUC123BSP_PATH)/Library/StdDriver
++        SRC += mbi5043.c \
++            $(NUC123BSP_PATH)/Library/StdDriver/src/adc.c \
++            $(NUC123BSP_PATH)/Library/StdDriver/src/clk.c \
++            $(NUC123BSP_PATH)/Library/StdDriver/src/crc.c \
++            $(NUC123BSP_PATH)/Library/StdDriver/src/fmc.c \
++            $(NUC123BSP_PATH)/Library/StdDriver/src/gpio.c \
++            $(NUC123BSP_PATH)/Library/StdDriver/src/i2c.c \
++            $(NUC123BSP_PATH)/Library/StdDriver/src/i2s.c \
++            $(NUC123BSP_PATH)/Library/StdDriver/src/pdma.c \
++            $(NUC123BSP_PATH)/Library/StdDriver/src/ps2.c \
++            $(NUC123BSP_PATH)/Library/StdDriver/src/pwm.c \
++            $(NUC123BSP_PATH)/Library/StdDriver/src/retarget.c \
++            $(NUC123BSP_PATH)/Library/StdDriver/src/spi.c \
++            $(NUC123BSP_PATH)/Library/StdDriver/src/sys.c \
++            $(NUC123BSP_PATH)/Library/StdDriver/src/timer.c \
++            $(NUC123BSP_PATH)/Library/StdDriver/src/uart.c \
++            $(NUC123BSP_PATH)/Library/StdDriver/src/usbd.c \
++            $(NUC123BSP_PATH)/Library/StdDriver/src/wdt.c \
++            $(NUC123BSP_PATH)/Library/StdDriver/src/wwdt.c
++    endif
++
+     ifeq ($(strip $(RGB_MATRIX_DRIVER)), APA102)
+         OPT_DEFS += -DAPA102
+         APA102_DRIVER_REQUIRED := yes
+@@ -610,6 +637,13 @@ endif
+ ifeq ($(strip $(CIE1931_CURVE)), yes)
+     OPT_DEFS += -DUSE_CIE1931_CURVE
+     LED_TABLES := yes
++    ifeq ($(strip $(RGB_MATRIX_DRIVER)), MBI5043)
++        OPT_DEFS += -DUSE_CIE1931_16_CURVE
++        LED_TABLES = yes
++    else
++        OPT_DEFS += -DUSE_CIE1931_CURVE
++        LED_TABLES = yes
++    endif
+ endif
+ 
+ ifeq ($(strip $(LED_TABLES)), yes)
+diff --git a/chibios-contrib.patch b/chibios-contrib.patch
+new file mode 100644
+index 0000000000..1bea1eab1b
+--- /dev/null
++++ b/chibios-contrib.patch
+@@ -0,0 +1,2031 @@
++diff --git a/os/hal/ports/NUMICRO/LLD/GPIOv1/hal_pal_lld.h b/os/hal/ports/NUMICRO/LLD/GPIOv1/hal_pal_lld.h
++index 09e933b..46a99ac 100644
++--- a/os/hal/ports/NUMICRO/LLD/GPIOv1/hal_pal_lld.h
+++++ b/os/hal/ports/NUMICRO/LLD/GPIOv1/hal_pal_lld.h
++@@ -42,10 +42,10 @@
++ /**
++  * @brief   I/O port modes.
++  */
++-#define GPIO_PMD_INPUT                                    0x00ul          /*!< Input Mode */
++-#define GPIO_PMD_OUTPUT                                   0x01ul          /*!< Output Mode */
++-#define GPIO_PMD_OPEN_DRAIN                               0x02ul          /*!< Open-Drain Mode */
++-#define GPIO_PMD_QUASI                                    0x03ul          /*!< Quasi-bidirectional Mode */
+++// #define GPIO_PMD_INPUT                                    0x00ul          /*!< Input Mode */
+++// #define GPIO_PMD_OUTPUT                                   0x01ul          /*!< Output Mode */
+++// #define GPIO_PMD_OPEN_DRAIN                               0x02ul          /*!< Open-Drain Mode */
+++// #define GPIO_PMD_QUASI                                    0x03ul          /*!< Quasi-bidirectional Mode */
++ 
++ /**
++  * @brief   NUC123 specific alternate input mode.
++@@ -78,935 +78,935 @@
++  *
++  */
++ 
++-/**
++- * GPIO Port A Alternative Pin Modes
++- *
++- */
++-
++-/* Pin 10 */
++-/* GPIO */
++-#define SYS_GPA_MFP_PA10_GPIO                             0x0ul
++-#define SYS_ALT_MFP_PA10_GPIO                             0x0ul
++-#define SYS_ALT_MFP1_PA10_GPIO                            NULL
++-
++-/* I2C1 SDA */
++-#define SYS_GPA_MFP_PA10_I2C1_SDA                         (0x01ul << GPA_MFP10)
++-#define SYS_ALT_MFP_PA10_I2C1_SDA                         0x0ul
++-#define SYS_ALT_MFP1_PA10_I2C1_SDA                        NULL
++-
++-/* SPI1 MISO0 */
++-#define SYS_GPA_MFP_PA10_SPI1_MISO0                       0x0ul
++-#define SYS_ALT_MFP_PA10_SPI1_MISO0                       (0x01ul << SYS_ALT_MFP_PA10_MFP1_Pos)
++-#define SYS_ALT_MFP1_PA10_SPI1_MISO0                      NULL
++-
++-/* SPI2 MISO0 */
++-#define SYS_GPA_MFP_PA10_SPI2_MISO0                       (0x01ul << GPA_MFP10)
++-#define SYS_ALT_MFP_PA10_SPI2_MISO0                       (0x01ul << SYS_ALT_MFP_PA10_MFP1_Pos)
++-#define SYS_ALT_MFP1_PA10_SPI2_MISO0                      NULL
++-
++-#define SYS_GPA_MFP_PA10_Msk                              (0x01ul << GPA_MFP10)
++-#define SYS_ALT_MFP_PA10_Msk                              (0x01ul << SYS_ALT_MFP_PA10_MFP1_Pos)
++-#define SYS_ALT_MFP1_PA10_Msk                             NULL
++-
++-/* Pin 11 */
++-/* GPIO */
++-#define SYS_GPA_MFP_PA11_GPIO                             0x0ul
++-#define SYS_ALT_MFP_PA11_GPIO                             0x0ul
++-#define SYS_ALT_MFP1_PA11_GPIO                            NULL
++-
++-/* I2C1 SCL */
++-#define SYS_GPA_MFP_PA11_I2C1_SCL                         (0x01ul << GPA_MFP11)
++-#define SYS_ALT_MFP_PA11_I2C1_SCL                         0x0ul
++-#define SYS_ALT_MFP1_PA11_I2C1_SCL                        NULL
++-
++-/* SPI1 CLK */
++-#define SYS_GPA_MFP_PA11_SPI1_CLK                         0x0ul
++-#define SYS_ALT_MFP_PA11_SPI1_CLK                         (0x01ul << GPA_MFP11)
++-#define SYS_ALT_MFP1_PA11_SPI1_CLK                        NULL
++-
++-/* SPI2 MOSI0 */
++-#define SYS_GPA_MFP_PA11_SPI2_MOSI0                       (0x01ul << GPA_MFP11)
++-#define SYS_ALT_MFP_PA11_SPI2_MOSI0                       (0x01ul << SYS_ALT_MFP_PA11_MFP1_Pos)
++-#define SYS_ALT_MFP1_PA11_SPI2_MOSI0                      NULL
++-
++-#define SYS_GPA_MFP_PA11_Msk                              (0x01ul << GPA_MFP11)
++-#define SYS_ALT_MFP_PA11_Msk                              (0x01ul << SYS_ALT_MFP_PA11_MFP1_Pos)
++-#define SYS_ALT_MFP1_PA11_Msk                             NULL
++-
++-/* Pin 12 */
++-/* GPIO */
++-#define SYS_GPA_MFP_PA12_GPIO                             0x0ul
++-#define SYS_ALT_MFP_PA12_GPIO                             NULL
++-#define SYS_ALT_MFP1_PA12_GPIO                            NULL
++-
++-/* PWM0 */
++-#define SYS_GPA_MFP_PA12_PWM0                             (0x01ul << GPA_MFP12)
++-#define SYS_ALT_MFP_PA12_PWM0                             NULL
++-#define SYS_ALT_MFP1_PA12_PWM0                            NULL
++-
++-#define SYS_GPA_MFP_PA12_Msk                              (0x01ul << GPA_MFP12)
++-#define SYS_ALT_MFP_PA12_Msk                              NULL
++-#define SYS_ALT_MFP1_PA12_Msk                             NULL
++-
++-/* Pin 13 */
++-/* GPIO */
++-#define SYS_GPA_MFP_PA13_GPIO                             0x0ul
++-#define SYS_ALT_MFP_PA13_GPIO                             NULL
++-#define SYS_ALT_MFP1_PA13_GPIO                            NULL
++-
++-/* PWM1 */
++-#define SYS_GPA_MFP_PA13_PWM1                             (0x01ul << GPA_MFP13)
++-#define SYS_ALT_MFP_PA13_PWM1                             NULL
++-#define SYS_ALT_MFP1_PA13_PWM1                            NULL
++-
++-#define SYS_GPA_MFP_PA13_Msk                              (0x01ul << GPA_MFP13)
++-#define SYS_ALT_MFP_PA13_Msk                              NULL
++-#define SYS_ALT_MFP1_PA13_Msk                             NULL
++-
++-/* Pin 14 */
++-/* GPIO */
++-#define SYS_GPA_MFP_PA14_GPIO                             0x0ul
++-#define SYS_ALT_MFP_PA14_GPIO                             NULL
++-#define SYS_ALT_MFP1_PA14_GPIO                            NULL
++-
++-/* PWM2 */
++-#define SYS_GPA_MFP_PA14_PWM2                             (0x01ul << GPA_MFP14)
++-#define SYS_ALT_MFP_PA14_PWM2                             NULL
++-#define SYS_ALT_MFP1_PA14_PWM2                            NULL
++-
++-#define SYS_GPA_MFP_PA14_Msk                              (0x01ul << GPA_MFP14)
++-#define SYS_ALT_MFP_PA14_Msk                              NULL
++-#define SYS_ALT_MFP1_PA14_Msk                             NULL
++-
++-/* Pin 15 */
++-/* GPIO */
++-#define SYS_GPA_MFP_PA15_GPIO                             0x0ul
++-#define SYS_ALT_MFP_PA15_GPIO                             0x0ul
++-#define SYS_ALT_MFP1_PA15_GPIO                            NULL
++-
++-/* PWM3 */
++-#define SYS_GPA_MFP_PA15_PWM3                             (0x01ul << GPA_MFP15)
++-#define SYS_ALT_MFP_PA15_PWM3                             0x0ul
++-#define SYS_ALT_MFP1_PA15_PWM3                            NULL
++-
++-/* CLK0 */
++-#define SYS_GPA_MFP_PA15_CLKO                             0x0ul
++-#define SYS_ALT_MFP_PA15_CLKO                             (0x01ul << SYS_ALT_MFP_PA15_MFP1_Pos)
++-#define SYS_ALT_MFP1_PA15_CLKO                            NULL
++-
++-/* I2S MCLK */
++-#define SYS_GPA_MFP_PA15_I2S_MCLK                         (0x01ul << GPA_MFP15)
++-#define SYS_ALT_MFP_PA15_I2S_MCLK                         (0x01ul << SYS_ALT_MFP_PA15_MFP1_Pos)
++-#define SYS_ALT_MFP1_PA15_I2S_MCLK                        NULL
++-
++-#define SYS_GPA_MFP_PA15_Msk                              (0x01ul << GPA_MFP15)
++-#define SYS_ALT_MFP_PA15_Msk                              (0x01ul << SYS_ALT_MFP_PA15_MFP1_Pos)
++-#define SYS_ALT_MFP1_PA15_Msk                             NULL
++-
++-/**
++- * GPIO Port B Alternative Pin Modes
++- *
++- */
++-
++-/* Pin 0 */
++-/* GPIO */
++-#define SYS_GPB_MFP_PB0_GPIO                              0x0ul
++-#define SYS_ALT_MFP_PB0_GPIO                              NULL
++-#define SYS_ALT_MFP1_PB0_GPIO                             NULL
++-
++-/* UART0 RXD */
++-#define SYS_GPB_MFP_PB0_UART0_RXD                         (0x01ul << 0)
++-#define SYS_ALT_MFP_PB0_UART0_RXD                         NULL
++-#define SYS_ALT_MFP1_PB0_UART0_RXD                        NULL
++-
++-#define SYS_GPB_MFP_PB0_Msk                               (0x01ul << 0)
++-#define SYS_ALT_MFP_PB0_Msk                               NULL
++-#define SYS_ALT_MFP1_PB0_Msk                              NULL
++-
++-/* Pin 1 */
++-/* GPIO */
++-#define SYS_GPB_MFP_PB1_GPIO                              0x0ul
++-#define SYS_ALT_MFP_PB1_GPIO                              NULL
++-#define SYS_ALT_MFP1_PB1_GPIO                             NULL
++-
++-/* UART0 TXD */
++-#define SYS_GPB_MFP_PB1_UART0_TXD                         (0x01ul << 1)
++-#define SYS_ALT_MFP_PB1_UART0_TXD                         NULL
++-#define SYS_ALT_MFP1_PB1_UART0_TXD                        NULL
++-
++-#define SYS_GPB_MFP_PB1_Msk                               (0x01ul << 1)
++-#define SYS_ALT_MFP_PB1_Msk                               NULL
++-#define SYS_ALT_MFP1_PB1_Msk                              NULL
++-
++-/* Pin 2 */
++-/* GPIO */
++-#define SYS_GPB_MFP_PB2_GPIO                              0x0ul
++-#define SYS_ALT_MFP_PB2_GPIO                              0x0ul
++-#define SYS_ALT_MFP1_PB2_GPIO                             NULL
++-
++-/* UART0 nRTS */
++-#define SYS_GPB_MFP_PB2_UART0_nRTS                        (0x01ul << 2)
++-#define SYS_ALT_MFP_PB2_UART0_nRTS                        0x0ul
++-#define SYS_ALT_MFP1_PB2_UART0_nRTS                       NULL
++-
++-/* TM2_EXT */
++-#define SYS_GPB_MFP_PB2_TM2_EXT                           (0x01ul << 2)
++-#define SYS_ALT_MFP_PB2_TM2_EXT                           (0x01ul << SYS_ALT_MFP_PB2_MFP1_Pos)
++-#define SYS_ALT_MFP1_PB2_TM2_EXT                          NULL
++-
++-#define SYS_GPB_MFP_PB2_Msk                               (0x01ul << 2)
++-#define SYS_ALT_MFP_PB2_Msk                               (0x01ul << SYS_ALT_MFP_PB2_MFP1_Pos)
++-#define SYS_ALT_MFP1_PB2_Msk                              NULL
++-
++-/* Pin 3 */
++-/* GPIO */
++-#define SYS_GPB_MFP_PB3_GPIO                              0x0ul
++-#define SYS_ALT_MFP_PB3_GPIO                              0x0ul
++-#define SYS_ALT_MFP1_PB3_GPIO                             NULL
++-
++-/* UART0 nCTS */
++-#define SYS_GPB_MFP_PB3_UART0_nCTS                        (0x01ul << 3)
++-#define SYS_ALT_MFP_PB3_UART0_nCTS                        0x0ul
++-#define SYS_ALT_MFP1_PB3_UART0_nCTS                       NULL
++-
++-/* TM3_EXT */
++-#define SYS_GPB_MFP_PB3_TM3_EXT                           (0x01ul << 3)
++-#define SYS_ALT_MFP_PB3_TM3_EXT                           (0x01ul << SYS_ALT_MFP_PB3_MFP1_Pos)
++-#define SYS_ALT_MFP1_PB3_TM3_EXT                          NULL
++-
++-#define SYS_GPB_MFP_PB3_Msk                               (0x01ul << 3)
++-#define SYS_ALT_MFP_PB3_Msk                               (0x01ul << SYS_ALT_MFP_PB3_MFP1_Pos)
++-#define SYS_ALT_MFP1_PB3_Msk                              NULL
++-
++-/* Pin 4 */
++-/* GPIO */
++-#define SYS_GPB_MFP_PB4_GPIO                              0x0ul
++-#define SYS_ALT_MFP_PB4_GPIO                              0x0ul
++-#define SYS_ALT_MFP1_PB4_GPIO                             NULL
++-
++-/* UART1 RXD */
++-#define SYS_GPB_MFP_PB4_UART1_RXD                         (0x01ul << 4)
++-#define SYS_ALT_MFP_PB4_UART1_RXD                         0x0ul
++-#define SYS_ALT_MFP1_PB4_UART1_RXD                        NULL
++-
++-/* SPI2 SS0 */
++-#define SYS_GPB_MFP_PB4_SPI2_SS0                          0x0ul
++-#define SYS_ALT_MFP_PB4_SPI2_SS0                          (0x01ul << SYS_ALT_MFP_PB4_MFP1_Pos)
++-#define SYS_ALT_MFP1_PB4_SPI2_SS0                         NULL
++-
++-/* SPI1 SS1 */
++-#define SYS_GPB_MFP_PB4_SPI1_SS1                          (0x01ul << 4)
++-#define SYS_ALT_MFP_PB4_SPI1_SS1                          (0x01ul << SYS_ALT_MFP_PB4_MFP1_Pos)
++-#define SYS_ALT_MFP1_PB4_SPI1_SS1                         NULL
++-
++-#define SYS_GPB_MFP_PB4_Msk                               (0x01ul << 4)
++-#define SYS_ALT_MFP_PB4_Msk                               (0x01ul << SYS_ALT_MFP_PB4_MFP1_Pos)
++-#define SYS_ALT_MFP1_PB4_Msk                              NULL
++-
++-/* Pin 5 */
++-/* GPIO */
++-#define SYS_GPB_MFP_PB5_GPIO                              0x0ul
++-#define SYS_ALT_MFP_PB5_GPIO                              0x0ul
++-#define SYS_ALT_MFP1_PB5_GPIO                             NULL
++-
++-/* UART1 TXD */
++-#define SYS_GPB_MFP_PB5_UART1_TXD                         (0x01ul << 5)
++-#define SYS_ALT_MFP_PB5_UART1_TXD                         0x0ul
++-#define SYS_ALT_MFP1_PB5_UART1_TXD                        NULL
++-
++-/* SPI2 CLK */
++-#define SYS_GPB_MFP_PB5_SPI2_CLK                          (0x01ul << 5)
++-#define SYS_ALT_MFP_PB5_SPI2_CLK                          (0x01ul << SYS_ALT_MFP_PB5_MFP1_Pos)
++-#define SYS_ALT_MFP1_PB5_SPI2_CLK                         NULL
++-
++-#define SYS_GPB_MFP_PB5_Msk                               (0x01ul << 5)
++-#define SYS_ALT_MFP_PB5_Msk                               (0x01ul << SYS_ALT_MFP_PB5_MFP1_Pos)
++-#define SYS_ALT_MFP1_PB5_Msk                              NULL
++-
++-/* Pin 6 */
++-/* GPIO */
++-#define SYS_GPB_MFP_PB6_GPIO                              0x0ul
++-#define SYS_ALT_MFP_PB6_GPIO                              0x0ul
++-#define SYS_ALT_MFP1_PB6_GPIO                             NULL
++-
++-/* UART1 nRTS */
++-#define SYS_GPB_MFP_PB6_UART1_nRTS                        (0x01ul << 6)
++-#define SYS_ALT_MFP_PB6_UART1_nRTS                        0x0ul
++-#define SYS_ALT_MFP1_PB6_UART1_nRTS                       NULL
++-
++-/* SPI2 MOSI0 */
++-#define SYS_GPB_MFP_PB6_SPI2_MOSI0                        (0x01ul << 6)
++-#define SYS_ALT_MFP_PB6_SPI2_MOSI0                        (0x01ul << SYS_ALT_MFP_PB6_MFP1_Pos)
++-#define SYS_ALT_MFP1_PB6_SPI2_MOSI0                       NULL
++-
++-#define SYS_GPB_MFP_PB6_Msk                               (0x01ul << 6)
++-#define SYS_ALT_MFP_PB6_Msk                               (0x01ul << SYS_ALT_MFP_PB6_MFP1_Pos)
++-#define SYS_ALT_MFP1_PB6_Msk                              NULL
++-
++-/* Pin 7 */
++-/* GPIO */
++-#define SYS_GPB_MFP_PB7_GPIO                              0x0ul
++-#define SYS_ALT_MFP_PB7_GPIO                              0x0ul
++-#define SYS_ALT_MFP1_PB7_GPIO                             NULL
++-
++-/* UART1 nCTS */
++-#define SYS_GPB_MFP_PB7_UART1_nCTS                        (0x01ul << 7)
++-#define SYS_ALT_MFP_PB7_UART1_nCTS                        0x0ul
++-#define SYS_ALT_MFP1_PB7_UART1_nCTS                       NULL
++-
++-/* SPI2 MISO0 */
++-#define SYS_GPB_MFP_PB7_SPI2_MISO0                        (0x01ul << 7)
++-#define SYS_ALT_MFP_PB7_SPI2_MISO0                        (0x01ul << SYS_ALT_MFP_PB7_MFP1_Pos)
++-#define SYS_ALT_MFP1_PB7_SPI2_MISO0                       NULL
++-
++-#define SYS_GPB_MFP_PB7_Msk                               (0x01ul << 7)
++-#define SYS_ALT_MFP_PB7_Msk                               (0x01ul << SYS_ALT_MFP_PB7_MFP1_Pos)
++-#define SYS_ALT_MFP1_PB7_Msk                              NULL
++-
++-/* Pin 8 */
++-/* GPIO */
++-#define SYS_GPB_MFP_PB8_GPIO                              0x0ul
++-#define SYS_ALT_MFP_PB8_GPIO                              NULL
++-#define SYS_ALT_MFP1_PB8_GPIO                             NULL
++-
++-/* TM0 */
++-#define SYS_GPB_MFP_PB8_TM0                               (0x01ul << 8)
++-#define SYS_ALT_MFP_PB8_TM0                               NULL
++-#define SYS_ALT_MFP1_PB8_TM0                              NULL
++-
++-#define SYS_GPB_MFP_PB8_Msk                               (0x01ul << 8)
++-#define SYS_ALT_MFP_PB8_Msk                               NULL
++-#define SYS_ALT_MFP1_PB8_Msk                              NULL
++-
++-/* Pin 9 */
++-/* GPIO */
++-#define SYS_GPB_MFP_PB9_GPIO                              0x0ul
++-#define SYS_ALT_MFP_PB9_GPIO                              0x0ul
++-#define SYS_ALT_MFP1_PB9_GPIO                             NULL
++-
++-/* TM1 */
++-#define SYS_GPB_MFP_PB9_TM1                               (0x01ul << 9)
++-#define SYS_ALT_MFP_PB9_TM1                               0x0ul
++-#define SYS_ALT_MFP1_PB9_TM1                              NULL
++-
++-/* SPI1 SS1 */
++-#define SYS_GPB_MFP_PB9_SPI1_SS1                          (0x01ul << 9)
++-#define SYS_ALT_MFP_PB9_SPI1_SS1                          (0x01ul << SYS_ALT_MFP_PB9_MFP1_Pos)
++-#define SYS_ALT_MFP1_PB9_SPI1_SS1                         NULL
++-
++-/* PWM1 */
++-#define SYS_GPB_MFP_PB9_PWM1                              0x0ul
++-#define SYS_ALT_MFP_PB9_PWM1                              (0x01ul << SYS_ALT_MFP_PB9_MFP1_Pos)
++-#define SYS_ALT_MFP1_PB9_PWM1                             NULL
++-
++-#define SYS_GPB_MFP_PB9_Msk                               (0x01ul << 9)
++-#define SYS_ALT_MFP_PB9_Msk                               (0x01ul << SYS_ALT_MFP_PB9_MFP1_Pos)
++-#define SYS_ALT_MFP1_PB9_Msk                              NULL
++-
++-/* Pin 10 */
++-/* GPIO */
++-#define SYS_GPB_MFP_PB10_GPIO                             0x0ul
++-#define SYS_ALT_MFP_PB10_GPIO                             0x0ul
++-#define SYS_ALT_MFP1_PB10_GPIO                            NULL
++-
++-/* TM2 */
++-#define SYS_GPB_MFP_PB10_TM2                              (0x01ul << 10)
++-#define SYS_ALT_MFP_PB10_TM2                              0x0ul
++-#define SYS_ALT_MFP1_PB10_TM2                             NULL
++-
++-/* SPI0 SS1 */
++-#define SYS_GPB_MFP_PB10_SPI0_SS1                         (0x01ul << 10)
++-#define SYS_ALT_MFP_PB10_SPI0_SS1                         (0x01ul << SYS_ALT_MFP_PB10_MFP1_Pos)
++-#define SYS_ALT_MFP1_PB10_SPI0_SS1                        NULL
++-
++-#define SYS_GPB_MFP_PB10_Msk                              (0x01ul << 10)
++-#define SYS_ALT_MFP_PB10_Msk                              (0x01ul << SYS_ALT_MFP_PB10_MFP1_Pos)
++-#define SYS_ALT_MFP1_PB10_Msk                             NULL
++-
++-/* Pin 12 */
++-/* GPIO */
++-#define SYS_GPB_MFP_PB12_GPIO                             0x0ul
++-#define SYS_ALT_MFP_PB12_GPIO                             0x0ul
++-#define SYS_ALT_MFP1_PB12_GPIO                            NULL
++-
++-/* SPI1 SS0 */
++-#define SYS_GPB_MFP_PB12_SPI1_SS0                         (0x01ul << 12)
++-#define SYS_ALT_MFP_PB12_SPI1_SS0                         0x0ul
++-#define SYS_ALT_MFP1_PB12_SPI1_SS0                        NULL
++-
++-/* CLK0 */
++-#define SYS_GPB_MFP_PB12_CLKO                             (0x01ul << 12)
++-#define SYS_ALT_MFP_PB12_CLKO                             (0x01ul << SYS_ALT_MFP_PB12_MFP1_Pos)
++-#define SYS_ALT_MFP1_PB12_CLKO                            NULL
++-
++-#define SYS_GPB_MFP_PB12_Msk                              (0x01ul << 12)
++-#define SYS_ALT_MFP_PB12_Msk                              (0x01ul << SYS_ALT_MFP_PB12_MFP1_Pos)
++-#define SYS_ALT_MFP1_PB12_Msk                             NULL
++-
++-/* Pin 13 */
++-/* GPIO */
++-#define SYS_GPB_MFP_PB13_GPIO                             0x0ul
++-#define SYS_ALT_MFP_PB13_GPIO                             NULL
++-#define SYS_ALT_MFP1_PB13_GPIO                            NULL
++-
++-#define SYS_GPB_MFP_PB13_Msk                              (0x01ul << 13)
++-#define SYS_ALT_MFP_PB13_Msk                              NULL
++-#define SYS_ALT_MFP1_PB13_Msk                             NULL
++-
++-/* Pin 14 */
++-/* GPIO */
++-#define SYS_GPB_MFP_PB14_GPIO                             0x0ul
++-#define SYS_ALT_MFP_PB14_GPIO                             NULL
++-#define SYS_ALT_MFP1_PB14_GPIO                            NULL
++-
++-/* INT0 */
++-#define SYS_GPB_MFP_PB14_INT0                             (0x01ul << 14)
++-#define SYS_ALT_MFP_PB14_INT0                             NULL
++-#define SYS_ALT_MFP1_PB14_INT0                            NULL
++-
++-#define SYS_GPB_MFP_PB14_Msk                              (0x01ul << 14)
++-#define SYS_ALT_MFP_PB14_Msk                              NULL
++-#define SYS_ALT_MFP1_PB14_Msk                             NULL
++-
++-/* Pin 15 */
++-/* GPIO */
++-#define SYS_GPB_MFP_PB15_GPIO                             0x0ul
++-#define SYS_ALT_MFP_PB15_GPIO                             0x0ul
++-#define SYS_ALT_MFP1_PB15_GPIO                            NULL
++-
++-/* INT1 */
++-#define SYS_GPB_MFP_PB15_INT1                             (0x01ul << 15)
++-#define SYS_ALT_MFP_PB15_INT1                             0x0ul
++-#define SYS_ALT_MFP1_PB15_INT1                            NULL
++-
++-/* TM0_EXT */
++-#define SYS_GPB_MFP_PB15_TM0_EXT                          (0x01ul << 15)
++-#define SYS_ALT_MFP_PB15_TM0_EXT                          (0x01ul << SYS_ALT_MFP_PB15_MFP1_Pos)
++-#define SYS_ALT_MFP1_PB15_TM0_EXT                         NULL
++-
++-#define SYS_GPB_MFP_PB15_Msk                              (0x01ul << 15)
++-#define SYS_ALT_MFP_PB15_Msk                              (0x01ul << SYS_ALT_MFP_PB15_MFP1_Pos)
++-#define SYS_ALT_MFP1_PB15_Msk                             NULL
++-
++-/**
++- * GPIO Port C Alternative Pin Modes
++- *
++- */
++-
++-/* Pin 0 */
++-/* GPIO */
++-#define SYS_GPC_MFP_PC0_GPIO                              0x0ul
++-#define SYS_ALT_MFP_PC0_GPIO                              0x0ul
++-#define SYS_ALT_MFP1_PC0_GPIO                             NULL
++-
++-/* SPI0 SS0 */
++-#define SYS_GPC_MFP_PC0_SPI0_SS0                          (0x01ul << GPC_MFP0)
++-#define SYS_ALT_MFP_PC0_SPI0_SS0                          0x0ul
++-#define SYS_ALT_MFP1_PC0_SPI0_SS0                         NULL
++-
++-/* I2S LRCLK */
++-#define SYS_GPC_MFP_PC0_I2S_LRCLK                         (0x01ul << GPC_MFP0)
++-#define SYS_ALT_MFP_PC0_I2S_LRCLK                         (0x01ul << SYS_ALT_MFP_PC0_MFP1_Pos)
++-#define SYS_ALT_MFP1_PC0_I2S_LRCLK                        NULL
++-
++-#define SYS_GPC_MFP_PC0_Msk                               (0x01ul << GPC_MFP0)
++-#define SYS_ALT_MFP_PC0_Msk                               (0x01ul << SYS_ALT_MFP_PC0_MFP1_Pos)
++-#define SYS_ALT_MFP1_PC0_Msk                              NULL
++-
++-/* Pin 1 */
++-/* GPIO */
++-#define SYS_GPC_MFP_PC1_GPIO                              0x0ul
++-#define SYS_ALT_MFP_PC1_GPIO                              0x0ul
++-#define SYS_ALT_MFP1_PC1_GPIO                             NULL
++-
++-/* SPI0 CLK */
++-#define SYS_GPC_MFP_PC1_SPI0_CLK                          (0x01ul << GPC_MFP1)
++-#define SYS_ALT_MFP_PC1_SPI0_CLK                          0x0ul
++-#define SYS_ALT_MFP1_PC1_SPI0_CLK                         NULL
++-
++-/* I2S BCLK */
++-#define SYS_GPC_MFP_PC1_I2S_BCLK                          (0x01ul << GPC_MFP1)
++-#define SYS_ALT_MFP_PC1_I2S_BCLK                          (0x01ul << SYS_ALT_MFP_PC1_MFP1_Pos)
++-#define SYS_ALT_MFP1_PC1_I2S_BCLK                         NULL
++-
++-#define SYS_GPC_MFP_PC1_Msk                               (0x01ul << GPC_MFP1)
++-#define SYS_ALT_MFP_PC1_Msk                               (0x01ul << SYS_ALT_MFP_PC1_MFP1_Pos)
++-#define SYS_ALT_MFP1_PC1_Msk                              NULL
++-
++-/* Pin 2 */
++-/* GPIO */
++-#define SYS_GPC_MFP_PC2_GPIO                              0x0ul
++-#define SYS_ALT_MFP_PC2_GPIO                              0x0ul
++-#define SYS_ALT_MFP1_PC2_GPIO                             NULL
++-
++-/* SPI0 MISO0 */
++-#define SYS_GPC_MFP_PC2_SPI0_MISO0                        (0x01ul << GPC_MFP2)
++-#define SYS_ALT_MFP_PC2_SPI0_MISO0                        0x0ul
++-#define SYS_ALT_MFP1_PC2_SPI0_MISO0                       NULL
++-
++-/* I2S DI */
++-#define SYS_GPC_MFP_PC2_I2S_DI                            (0x01ul << GPC_MFP2)
++-#define SYS_ALT_MFP_PC2_I2S_DI                            (0x01ul << SYS_ALT_MFP_PC2_MFP1_Pos)
++-#define SYS_ALT_MFP1_PC2_I2S_DI                           NULL
++-
++-#define SYS_GPC_MFP_PC2_Msk                               (0x01ul << GPC_MFP2)
++-#define SYS_ALT_MFP_PC2_Msk                               (0x01ul << SYS_ALT_MFP_PC2_MFP1_Pos)
++-#define SYS_ALT_MFP1_PC2_Msk                              NULL
++-
++-/* Pin 3 */
++-/* GPIO */
++-#define SYS_GPC_MFP_PC3_GPIO                              0x0ul
++-#define SYS_ALT_MFP_PC3_GPIO                              0x0ul
++-#define SYS_ALT_MFP1_PC3_GPIO                             NULL
++-
++-/* SPI0 MOSI0 */
++-#define SYS_GPC_MFP_PC3_SPI0_MOSI0                        (0x01ul << GPC_MFP3)
++-#define SYS_ALT_MFP_PC3_SPI0_MOSI0                        0x0ul
++-#define SYS_ALT_MFP1_PC3_SPI0_MOSI0                       NULL
++-
++-/* I2S DO */
++-#define SYS_GPC_MFP_PC3_I2S_DO                            (0x01ul << GPC_MFP3)
++-#define SYS_ALT_MFP_PC3_I2S_DO                            (0x01ul << SYS_ALT_MFP_PC3_MFP1_Pos)
++-#define SYS_ALT_MFP1_PC3_I2S_DO                           NULL
++-
++-#define SYS_GPC_MFP_PC3_Msk                               (0x01ul << GPC_MFP3)
++-#define SYS_ALT_MFP_PC3_Msk                               (0x01ul << SYS_ALT_MFP_PC3_MFP1_Pos)
++-#define SYS_ALT_MFP1_PC3_Msk                              NULL
++-
++-/* Pin 4 */
++-/* GPIO */
++-#define SYS_GPC_MFP_PC4_GPIO                              0x0ul
++-#define SYS_ALT_MFP_PC4_GPIO                              0x0ul
++-#define SYS_ALT_MFP1_PC4_GPIO                             NULL
++-
++-/* SPI0 MISO1 */
++-#define SYS_GPC_MFP_PC4_SPI0_MISO1                        (0x01ul << GPC_MFP4)
++-#define SYS_ALT_MFP_PC4_SPI0_MISO1                        0x0ul
++-#define SYS_ALT_MFP1_PC4_SPI0_MISO1                       NULL
++-
++-/* UART0 RXD */
++-#define SYS_GPC_MFP_PC4_UART0_RXD                         (0x01ul << GPC_MFP4)
++-#define SYS_ALT_MFP_PC4_UART0_RXD                         (0x01ul << SYS_ALT_MFP_PC4_MFP1_Pos)
++-#define SYS_ALT_MFP1_PC4_UART0_RXD                        NULL
++-
++-#define SYS_GPC_MFP_PC4_Msk                               (0x01ul << GPC_MFP4)
++-#define SYS_ALT_MFP_PC4_Msk                               (0x01ul << SYS_ALT_MFP_PC4_MFP1_Pos)
++-#define SYS_ALT_MFP1_PC4_Msk                              NULL
++-
++-/* Pin 5 */
++-/* GPIO */
++-#define SYS_GPC_MFP_PC5_GPIO                              0x0ul
++-#define SYS_ALT_MFP_PC5_GPIO                              0x0ul
++-#define SYS_ALT_MFP1_PC5_GPIO                             NULL
++-
++-/* SPI0 MOSI1 */
++-#define SYS_GPC_MFP_PC5_SPI0_MOSI1                        (0x01ul << GPC_MFP5)
++-#define SYS_ALT_MFP_PC5_SPI0_MOSI1                        0x0ul
++-#define SYS_ALT_MFP1_PC5_SPI0_MOSI1                       NULL
++-
++-/* UART0 TXD */
++-#define SYS_GPC_MFP_PC5_UART0_TXD                         (0x01ul << GPC_MFP5)
++-#define SYS_ALT_MFP_PC5_UART0_TXD                         (0x01ul << SYS_ALT_MFP_PC5_MFP1_Pos)
++-#define SYS_ALT_MFP1_PC5_UART0_TXD                        NULL
++-
++-#define SYS_GPC_MFP_PC5_Msk                               (0x01ul << GPC_MFP5)
++-#define SYS_ALT_MFP_PC5_Msk                               (0x01ul << SYS_ALT_MFP_PC5_MFP1_Pos)
++-#define SYS_ALT_MFP1_PC5_Msk                              NULL
++-
++-/* Pin 8 */
++-/* GPIO */
++-#define SYS_GPC_MFP_PC8_GPIO                              0x0ul
++-#define SYS_ALT_MFP_PC8_GPIO                              NULL
++-#define SYS_ALT_MFP1_PC8_GPIO                             0x0ul
++-
++-/* SPI1 SS0 */
++-#define SYS_GPC_MFP_PC8_SPI1_SS0                          (0x01ul << GPC_MFP8)
++-#define SYS_ALT_MFP_PC8_SPI1_SS0                          NULL
++-#define SYS_ALT_MFP1_PC8_SPI1_SS0                         0x0ul
++-
++-/* PWM0 */
++-#define SYS_GPC_MFP_PC8_PWM0                              (0x01ul << GPC_MFP8)
++-#define SYS_ALT_MFP_PC8_PWM0                              NULL
++-#define SYS_ALT_MFP1_PC8_PWM0                             (0x01ul << SYS_ALT_MFP1_PC8_MFP1_Pos)
++-
++-#define SYS_GPC_MFP_PC8_Msk                               (0x01ul << GPC_MFP8)
++-#define SYS_ALT_MFP_PC8_Msk                               NULL
++-#define SYS_ALT_MFP1_PC8_Msk                              (0x01ul << SYS_ALT_MFP1_PC8_MFP1_Pos)
++-
++-/* Pin 9 */
++-/* GPIO */
++-#define SYS_GPC_MFP_PC9_GPIO                              0x0ul
++-#define SYS_ALT_MFP_PC9_GPIO                              NULL
++-#define SYS_ALT_MFP1_PC9_GPIO                             NULL
++-
++-/* SPI1 CLK */
++-#define SYS_GPC_MFP_PC9_SPI1_CLK                          (0x01ul << GPC_MFP9)
++-#define SYS_ALT_MFP_PC9_SPI1_CLK                          NULL
++-#define SYS_ALT_MFP1_PC9_SPI1_CLK                         NULL
++-
++-#define SYS_GPC_MFP_PC9_Msk                               (0x01ul << GPC_MFP9)
++-#define SYS_ALT_MFP_PC9_Msk                               NULL
++-#define SYS_ALT_MFP1_PC9_Msk                              NULL
++-
++-/* Pin 10 */
++-/* GPIO */
++-#define SYS_GPC_MFP_PC10_GPIO                             0x0ul
++-#define SYS_ALT_MFP_PC10_GPIO                             NULL
++-#define SYS_ALT_MFP1_PC10_GPIO                            NULL
++-
++-/* SPI1 MISO0 */
++-#define SYS_GPC_MFP_PC10_SPI1_MISO0                       (0x01ul << GPC_MFP10)
++-#define SYS_ALT_MFP_PC10_SPI1_MISO0                       NULL
++-#define SYS_ALT_MFP1_PC10_SPI1_MISO0                      NULL
++-
++-#define SYS_GPC_MFP_PC10_Msk                              (0x01ul << GPC_MFP10)
++-#define SYS_ALT_MFP_PC10_Msk                              NULL
++-#define SYS_ALT_MFP1_PC10_Msk                             NULL
++-
++-/* Pin 11 */
++-/* GPIO */
++-#define SYS_GPC_MFP_PC11_GPIO                             0x0ul
++-#define SYS_ALT_MFP_PC11_GPIO                             NULL
++-#define SYS_ALT_MFP1_PC11_GPIO                            NULL
++-
++-/* SPI1 MOSI0 */
++-#define SYS_GPC_MFP_PC11_SPI1_MOSI0                       (0x01ul << GPC_MFP11)
++-#define SYS_ALT_MFP_PC11_SPI1_MOSI0                       NULL
++-#define SYS_ALT_MFP1_PC11_SPI1_MOSI0                      NULL
++-
++-#define SYS_GPC_MFP_PC11_Msk                              (0x01ul << GPC_MFP11)
++-#define SYS_ALT_MFP_PC11_Msk                              NULL
++-#define SYS_ALT_MFP1_PC11_Msk                             NULL
++-
++-/* Pin 12 */
++-/* GPIO */
++-#define SYS_GPC_MFP_PC12_GPIO                             0x0ul
++-#define SYS_ALT_MFP_PC12_GPIO                             0x0ul
++-#define SYS_ALT_MFP1_PC12_GPIO                            NULL
++-
++-/* SPI1 MISO1 */
++-#define SYS_GPC_MFP_PC12_SPI1_MISO1                       (0x01ul << GPC_MFP12)
++-#define SYS_ALT_MFP_PC12_SPI1_MISO1                       0x0ul
++-#define SYS_ALT_MFP1_PC12_SPI1_MISO1                      NULL
++-
++-/* I2S MCLK */
++-#define SYS_GPC_MFP_PC12_I2S_MCLK                         0x0ul
++-#define SYS_ALT_MFP_PC12_I2S_MCLK                         (0x01ul << SYS_ALT_MFP_PC12_MFP1_Pos)
++-#define SYS_ALT_MFP1_PC12_I2S_MCLK                        NULL
++-
++-/* PWM2 */
++-#define SYS_GPC_MFP_PC12_PWM2                             (0x01ul << GPC_MFP12)
++-#define SYS_ALT_MFP_PC12_PWM2                             (0x01ul << SYS_ALT_MFP_PC12_MFP1_Pos)
++-#define SYS_ALT_MFP1_PC12_PWM2                            NULL
++-
++-#define SYS_GPC_MFP_PC12_Msk                              (0x01ul << GPC_MFP12)
++-#define SYS_ALT_MFP_PC12_Msk                              (0x01ul << SYS_ALT_MFP_PC12_MFP1_Pos)
++-#define SYS_ALT_MFP1_PC12_Msk                             NULL
++-
++-/* Pin 12 */
++-/* GPIO */
++-#define SYS_GPC_MFP_PC13_GPIO                             0x0ul
++-#define SYS_ALT_MFP_PC13_GPIO                             0x0ul
++-#define SYS_ALT_MFP1_PC13_GPIO                            NULL
++-
++-/* SPI1 MOSI1 */
++-#define SYS_GPC_MFP_PC13_SPI1_MOSI1                       (0x01ul << GPC_MFP13)
++-#define SYS_ALT_MFP_PC13_SPI1_MOSI1                       0x0ul
++-#define SYS_ALT_MFP1_PC13_SPI1_MOSI1                      NULL
++-
++-/* CLK0 */
++-#define SYS_GPC_MFP_PC13_CLKO                             0x0ul
++-#define SYS_ALT_MFP_PC13_CLKO                             (0x01ul << SYS_ALT_MFP_PC13_MFP1_Pos)
++-#define SYS_ALT_MFP1_PC13_CLKO                            NULL
++-
++-/* PWM3 */
++-#define SYS_GPC_MFP_PC13_PWM3                             (0x01ul << GPC_MFP13)
++-#define SYS_ALT_MFP_PC13_PWM3                             (0x01ul << SYS_ALT_MFP_PC13_MFP1_Pos)
++-#define SYS_ALT_MFP1_PC13_PWM3                            NULL
++-
++-#define SYS_GPC_MFP_PC13_Msk                              (0x01ul << GPC_MFP13)
++-#define SYS_ALT_MFP_PC13_Msk                              (0x01ul << SYS_ALT_MFP_PC13_MFP1_Pos)
++-#define SYS_ALT_MFP1_PC13_Msk                             NULL
++-
++-/**
++- * GPIO Port D Alternative Pin Modes
++- *
++- */
++-
++-/* Pin 0 */
++-/* GPIO */
++-#define SYS_GPD_MFP_PD0_GPIO                              0x0ul
++-#define SYS_ALT_MFP_PD0_GPIO                              NULL
++-#define SYS_ALT_MFP1_PD0_GPIO                             0x0ul
++-
++-/* SPI2 SS0 */
++-#define SYS_GPD_MFP_PD0_SPI2_SS0                          0x0ul
++-#define SYS_ALT_MFP_PD0_SPI2_SS0                          NULL
++-#define SYS_ALT_MFP1_PD0_SPI2_SS0                         (0x01ul << SYS_ALT_MFP1_PD0_MFP1_Pos)
++-
++-/* ADC0 */
++-#define SYS_GPD_MFP_PD0_ADC0                              (0x01ul << GPD_MFP0)
++-#define SYS_ALT_MFP_PD0_ADC0                              NULL
++-#define SYS_ALT_MFP1_PD0_ADC0                             (0x01ul << SYS_ALT_MFP1_PD0_MFP1_Pos)
++-
++-#define SYS_GPD_MFP_PD0_Msk                               (0x01ul << GPD_MFP0)
++-#define SYS_ALT_MFP_PD0_Msk                               NULL
++-#define SYS_ALT_MFP1_PD0_Msk                              (0x01ul << SYS_ALT_MFP1_PD0_MFP1_Pos)
++-
++-/* Pin 1 */
++-/* GPIO */
++-#define SYS_GPD_MFP_PD1_GPIO                              0x0ul
++-#define SYS_ALT_MFP_PD1_GPIO                              NULL
++-#define SYS_ALT_MFP1_PD1_GPIO                             0x0ul
++-
++-/* SPI0 SS1 */
++-#define SYS_GPD_MFP_PD1_SPI0_SS1                          (0x01ul << GPD_MFP1)
++-#define SYS_ALT_MFP_PD1_SPI0_SS1                          NULL
++-#define SYS_ALT_MFP1_PD1_SPI0_SS1                         0x0ul
++-
++-/* SPI2 CLK */
++-#define SYS_GPD_MFP_PD1_SPI2_CLK                          0x0ul
++-#define SYS_ALT_MFP_PD1_SPI2_CLK                          NULL
++-#define SYS_ALT_MFP1_PD1_SPI2_CLK                         (0x01ul << SYS_ALT_MFP1_PD1_MFP1_Pos)
++-
++-/* ADC1 */
++-#define SYS_GPD_MFP_PD1_ADC1                              (0x01ul << GPD_MFP1)
++-#define SYS_ALT_MFP_PD1_ADC1                              NULL
++-#define SYS_ALT_MFP1_PD1_ADC1                             (0x01ul << SYS_ALT_MFP1_PD1_MFP1_Pos)
++-
++-#define SYS_GPD_MFP_PD1_Msk                               (0x01ul << GPD_MFP1)
++-#define SYS_ALT_MFP_PD1_Msk                               NULL
++-#define SYS_ALT_MFP1_PD1_Msk                              (0x01ul << SYS_ALT_MFP1_PD1_MFP1_Pos)
++-
++-/* Pin 2 */
++-/* GPIO */
++-#define SYS_GPD_MFP_PD2_GPIO                              0x0ul
++-#define SYS_ALT_MFP_PD2_GPIO                              NULL
++-#define SYS_ALT_MFP1_PD2_GPIO                             0x0ul
++-
++-/* SPI0 MISO1 */
++-#define SYS_GPD_MFP_PD2_SPI0_MISO1                        (0x01ul << GPD_MFP2)
++-#define SYS_ALT_MFP_PD2_SPI0_MISO1                        NULL
++-#define SYS_ALT_MFP1_PD2_SPI0_MISO1                       0x0ul
++-
++-/* SPI2 MISO0 */
++-#define SYS_GPD_MFP_PD2_SPI2_MISO0                        0x0ul
++-#define SYS_ALT_MFP_PD2_SPI2_MISO0                        NULL
++-#define SYS_ALT_MFP1_PD2_SPI2_MISO0                       (0x01ul << SYS_ALT_MFP1_PD2_MFP1_Pos)
++-
++-/* ADC2 */
++-#define SYS_GPD_MFP_PD2_ADC2                              (0x01ul << GPD_MFP2)
++-#define SYS_ALT_MFP_PD2_ADC2                              NULL
++-#define SYS_ALT_MFP1_PD2_ADC2                             (0x01ul << SYS_ALT_MFP1_PD2_MFP1_Pos)
++-
++-#define SYS_GPD_MFP_PD2_Msk                               (0x01ul << GPD_MFP2)
++-#define SYS_ALT_MFP_PD2_Msk                               NULL
++-#define SYS_ALT_MFP1_PD2_Msk                              (0x01ul << SYS_ALT_MFP1_PD2_MFP1_Pos)
++-
++-/* Pin 3 */
++-/* GPIO */
++-#define SYS_GPD_MFP_PD3_GPIO                              0x0ul
++-#define SYS_ALT_MFP_PD3_GPIO                              NULL
++-#define SYS_ALT_MFP1_PD3_GPIO                             0x0ul
++-
++-/* SPI0 MOSI1 */
++-#define SYS_GPD_MFP_PD3_SPI0_MOSI1                        (0x01ul << GPD_MFP3)
++-#define SYS_ALT_MFP_PD3_SPI0_MOSI1                        NULL
++-#define SYS_ALT_MFP1_PD3_SPI0_MOSI1                       0x0ul
++-
++-/* SPI2 MOSI0 */
++-#define SYS_GPD_MFP_PD3_SPI2_MOSI0                        0x0ul
++-#define SYS_ALT_MFP_PD3_SPI2_MOSI0                        NULL
++-#define SYS_ALT_MFP1_PD3_SPI2_MOSI0                       (0x01ul << SYS_ALT_MFP1_PD3_MFP1_Pos)
++-
++-/* ADC3 */
++-#define SYS_GPD_MFP_PD3_ADC3                              (0x01ul << GPD_MFP3)
++-#define SYS_ALT_MFP_PD3_ADC3                              NULL
++-#define SYS_ALT_MFP1_PD3_ADC3                             (0x01ul << SYS_ALT_MFP1_PD3_MFP1_Pos)
++-
++-#define SYS_GPD_MFP_PD3_Msk                               (0x01ul << GPD_MFP3)
++-#define SYS_ALT_MFP_PD3_Msk                               NULL
++-#define SYS_ALT_MFP1_PD3_Msk                              (0x01ul << SYS_ALT_MFP1_PD3_MFP1_Pos)
++-
++-/* Pin 4 */
++-/* GPIO */
++-#define SYS_GPD_MFP_PD4_GPIO                              0x0ul
++-#define SYS_ALT_MFP_PD4_GPIO                              NULL
++-#define SYS_ALT_MFP1_PD4_GPIO                             0x0ul
++-
++-/* SPI2 MISO1 */
++-#define SYS_GPD_MFP_PD4_SPI2_MISO1                        0x0ul
++-#define SYS_ALT_MFP_PD4_SPI2_MISO1                        NULL
++-#define SYS_ALT_MFP1_PD4_SPI2_MISO1                       (0x01ul << SYS_ALT_MFP1_PD4_MFP1_Pos)
++-
++-/* ADC4 */
++-#define SYS_GPD_MFP_PD4_ADC4                              (0x01ul << GPD_MFP4)
++-#define SYS_ALT_MFP_PD4_ADC4                              NULL
++-#define SYS_ALT_MFP1_PD4_ADC4                             (0x01ul << SYS_ALT_MFP1_PD4_MFP1_Pos)
++-
++-#define SYS_GPD_MFP_PD4_Msk                               (0x01ul << GPD_MFP4)
++-#define SYS_ALT_MFP_PD4_Msk                               NULL
++-#define SYS_ALT_MFP1_PD4_Msk                              (0x01ul << SYS_ALT_MFP1_PD4_MFP1_Pos)
++-
++-/* Pin 5 */
++-/* GPIO */
++-#define SYS_GPD_MFP_PD5_GPIO                              0x0ul
++-#define SYS_ALT_MFP_PD5_GPIO                              NULL
++-#define SYS_ALT_MFP1_PD5_GPIO                             0x0ul
++-
++-/* SPI2 MOSI1 */
++-#define SYS_GPD_MFP_PD5_SPI2_MOSI1                        0x0ul
++-#define SYS_ALT_MFP_PD5_SPI2_MOSI1                        NULL
++-#define SYS_ALT_MFP1_PD5_SPI2_MOSI1                       (0x01ul << SYS_ALT_MFP1_PD5_MFP1_Pos)
++-
++-/* ADC5 */
++-#define SYS_GPD_MFP_PD5_ADC5                              (0x01ul << GPD_MFP5)
++-#define SYS_ALT_MFP_PD5_ADC5                              NULL
++-#define SYS_ALT_MFP1_PD5_ADC5                             (0x01ul << SYS_ALT_MFP1_PD5_MFP1_Pos)
++-
++-#define SYS_GPD_MFP_PD5_Msk                               (0x01ul << GPD_MFP5)
++-#define SYS_ALT_MFP_PD5_Msk                               NULL
++-#define SYS_ALT_MFP1_PD5_Msk                              (0x01ul << SYS_ALT_MFP1_PD5_MFP1_Pos)
++-
++-/* Pin 8 */
++-/* GPIO */
++-#define SYS_GPD_MFP_PD8_GPIO                              0x0ul
++-#define SYS_ALT_MFP_PD8_GPIO                              NULL
++-#define SYS_ALT_MFP1_PD8_GPIO                             NULL
++-
++-/* SPI1 MOSI0 */
++-#define SYS_GPD_MFP_PD8_SPI1_MOSI0                        (0x01ul << GPD_MFP8)
++-#define SYS_ALT_MFP_PD8_SPI1_MOSI0                        NULL
++-#define SYS_ALT_MFP1_PD8_SPI1_MOSI0                       NULL
++-
++-#define SYS_GPD_MFP_PD8_Msk                               (0x01ul << GPD_MFP8)
++-#define SYS_ALT_MFP_PD8_Msk                               NULL
++-#define SYS_ALT_MFP1_PD8_Msk                              NULL
++-
++-/* Pin 9 */
++-/* GPIO */
++-#define SYS_GPD_MFP_PD9_GPIO                              0x0ul
++-#define SYS_ALT_MFP_PD9_GPIO                              NULL
++-#define SYS_ALT_MFP1_PD9_GPIO                             NULL
++-
++-#define SYS_GPD_MFP_PD9_Msk                               (0x01ul << GPD_MFP9)
++-#define SYS_ALT_MFP_PD9_Msk                               NULL
++-#define SYS_ALT_MFP1_PD9_Msk                              NULL
++-
++-/* Pin 10 */
++-/* GPIO */
++-#define SYS_GPD_MFP_PD10_GPIO                             0x0ul
++-#define SYS_ALT_MFP_PD10_GPIO                             NULL
++-#define SYS_ALT_MFP1_PD10_GPIO                            NULL
++-
++-/* CLK0 */
++-#define SYS_GPD_MFP_PD10_CLKO                             (0x01ul << GPD_MFP10)
++-#define SYS_ALT_MFP_PD10_CLKO                             NULL
++-#define SYS_ALT_MFP1_PD10_CLKO                            NULL
++-
++-#define SYS_GPD_MFP_PD10_Msk                              (0x01ul << GPD_MFP10)
++-#define SYS_ALT_MFP_PD10_Msk                              NULL
++-#define SYS_ALT_MFP1_PD10_Msk                             NULL
++-
++-/* Pin 11 */
++-/* GPIO */
++-#define SYS_GPD_MFP_PD11_GPIO                             0x0ul
++-#define SYS_ALT_MFP_PD11_GPIO                             NULL
++-#define SYS_ALT_MFP1_PD11_GPIO                            NULL
++-
++-/* INT1 */
++-#define SYS_GPD_MFP_PD11_INT1                             (0x01ul << GPD_MFP11)
++-#define SYS_ALT_MFP_PD11_INT1                             NULL
++-#define SYS_ALT_MFP1_PD11_INT1                            NULL
++-
++-#define SYS_GPD_MFP_PD11_Msk                              (0x01ul << GPD_MFP11)
++-#define SYS_ALT_MFP_PD11_Msk                              NULL
++-#define SYS_ALT_MFP1_PD11_Msk                             NULL
++-
++-/**
++- * GPIO Port F Alternative Pin Modes
++- *
++- */
++-
++-/* Pin 0 */
++-/* GPIO */
++-#define SYS_GPF_MFP_PF0_GPIO                              0x0ul
++-#define SYS_ALT_MFP_PF0_GPIO                              NULL
++-#define SYS_ALT_MFP1_PF0_GPIO                             NULL
++-
++-/* XT1 OUT */
++-#define SYS_GPF_MFP_PF0_XT1_OUT                           SYS_GPF_MFP_GPF_MFP0_Msk
++-#define SYS_ALT_MFP_PF0_XT1_OUT                           NULL
++-#define SYS_ALT_MFP1_PF0_XT1_OUT                          NULL
++-
++-#define SYS_GPF_MFP_PF0_Msk                               SYS_GPF_MFP_GPF_MFP0_Msk
++-#define SYS_ALT_MFP_PF0_Msk                               NULL
++-#define SYS_ALT_MFP1_PF0_Msk                              NULL
++-
++-/* Pin 1 */
++-/* GPIO */
++-#define SYS_GPF_MFP_PF1_GPIO                              0x0ul
++-#define SYS_ALT_MFP_PF1_GPIO                              NULL
++-#define SYS_ALT_MFP1_PF1_GPIO                             NULL
++-
++-/* XT1 IN */
++-#define SYS_GPF_MFP_PF1_XT1_IN                            SYS_GPF_MFP_GPF_MFP1_Msk
++-#define SYS_ALT_MFP_PF1_XT1_IN                            NULL
++-#define SYS_ALT_MFP1_PF1_XT1_IN                           NULL
++-
++-#define SYS_GPF_MFP_PF1_Msk                               SYS_GPF_MFP_GPF_MFP1_Msk
++-#define SYS_ALT_MFP_PF1_Msk                               NULL
++-#define SYS_ALT_MFP1_PF1_Msk                              NULL
++-
++-/* Pin 2 */
++-/* GPIO */
++-#define SYS_GPF_MFP_PF2_GPIO                              0x0ul
++-#define SYS_ALT_MFP_PF2_GPIO                              NULL
++-#define SYS_ALT_MFP1_PF2_GPIO                             0x0ul
++-
++-/* PS2 DAT */
++-#define SYS_GPF_MFP_PF2_PS2_DAT                           SYS_GPF_MFP_GPF_MFP2_Msk
++-#define SYS_ALT_MFP_PF2_PS2_DAT                           NULL
++-#define SYS_ALT_MFP1_PF2_PS2_DAT                          0x0ul
++-
++-/* I2C0 SDA */
++-#define SYS_GPF_MFP_PF2_I2C0_SDA                          SYS_GPF_MFP_GPF_MFP2_Msk
++-#define SYS_ALT_MFP_PF2_I2C0_SDA                          NULL
++-#define SYS_ALT_MFP1_PF2_I2C0_SDA                         (0x02ul << SYS_ALT_MFP1_PF2_MFP1_Pos)
++-
++-/* ADC6 */
++-#define SYS_GPF_MFP_PF2_ADC6                              SYS_GPF_MFP_GPF_MFP2_Msk
++-#define SYS_ALT_MFP_PF2_ADC6                              NULL
++-#define SYS_ALT_MFP1_PF2_ADC6                             (0x03ul << SYS_ALT_MFP1_PF2_MFP1_Pos)
++-
++-#define SYS_GPF_MFP_PF2_Msk                               SYS_GPF_MFP_GPF_MFP2_Msk
++-#define SYS_ALT_MFP_PF2_Msk                               NULL
++-#define SYS_ALT_MFP1_PF2_Msk                              (0x03ul << SYS_ALT_MFP1_PF2_MFP1_Pos)
++-
++-/* Pin 3 */
++-/* GPIO */
++-#define SYS_GPF_MFP_PF3_GPIO                              0x0ul
++-#define SYS_ALT_MFP_PF3_GPIO                              NULL
++-#define SYS_ALT_MFP1_PF3_GPIO                             0x0ul
++-
++-/* PS2 CLK */
++-#define SYS_GPF_MFP_PF3_PS2_CLK                           SYS_GPF_MFP_GPF_MFP3_Msk
++-#define SYS_ALT_MFP_PF3_PS2_CLK                           NULL
++-#define SYS_ALT_MFP1_PF3_PS2_CLK                          0x0ul
++-
++-/* I2C0 SCL */
++-#define SYS_GPF_MFP_PF3_I2C0_SCL                          SYS_GPF_MFP_GPF_MFP3_Msk
++-#define SYS_ALT_MFP_PF3_I2C0_SCL                          NULL
++-#define SYS_ALT_MFP1_PF3_I2C0_SCL                         (0x2UL << SYS_ALT_MFP1_PF3_MFP1_Pos)
++-
++-/* ADC7 */
++-#define SYS_GPF_MFP_PF3_ADC7                              (SYS_GPF_MFP_GPF_MFP3_Msk
++-#define SYS_ALT_MFP_PF3_ADC7                              NULL
++-#define SYS_ALT_MFP1_PF3_ADC7                             (0x03ul << SYS_ALT_MFP1_PF3_MFP1_Pos)
++-
++-#define SYS_GPF_MFP_PF3_Msk                               SYS_GPF_MFP_GPF_MFP3_Msk
++-#define SYS_ALT_MFP_PF3_Msk                               NULL
++-#define SYS_ALT_MFP1_PF3_Msk                              (0x03ul << SYS_ALT_MFP1_PF3_MFP1_Pos)
+++// /**
+++//  * GPIO Port A Alternative Pin Modes
+++//  *
+++//  */
+++
+++// /* Pin 10 */
+++// /* GPIO */
+++// #define SYS_GPA_MFP_PA10_GPIO                             0x0ul
+++// #define SYS_ALT_MFP_PA10_GPIO                             0x0ul
+++// #define SYS_ALT_MFP1_PA10_GPIO                            NULL
+++
+++// /* I2C1 SDA */
+++// #define SYS_GPA_MFP_PA10_I2C1_SDA                         (0x01ul << GPA_MFP10)
+++// #define SYS_ALT_MFP_PA10_I2C1_SDA                         0x0ul
+++// #define SYS_ALT_MFP1_PA10_I2C1_SDA                        NULL
+++
+++// /* SPI1 MISO0 */
+++// #define SYS_GPA_MFP_PA10_SPI1_MISO0                       0x0ul
+++// #define SYS_ALT_MFP_PA10_SPI1_MISO0                       (0x01ul << SYS_ALT_MFP_PA10_MFP1_Pos)
+++// #define SYS_ALT_MFP1_PA10_SPI1_MISO0                      NULL
+++
+++// /* SPI2 MISO0 */
+++// #define SYS_GPA_MFP_PA10_SPI2_MISO0                       (0x01ul << GPA_MFP10)
+++// #define SYS_ALT_MFP_PA10_SPI2_MISO0                       (0x01ul << SYS_ALT_MFP_PA10_MFP1_Pos)
+++// #define SYS_ALT_MFP1_PA10_SPI2_MISO0                      NULL
+++
+++// #define SYS_GPA_MFP_PA10_Msk                              (0x01ul << GPA_MFP10)
+++// #define SYS_ALT_MFP_PA10_Msk                              (0x01ul << SYS_ALT_MFP_PA10_MFP1_Pos)
+++// #define SYS_ALT_MFP1_PA10_Msk                             NULL
+++
+++// /* Pin 11 */
+++// /* GPIO */
+++// #define SYS_GPA_MFP_PA11_GPIO                             0x0ul
+++// #define SYS_ALT_MFP_PA11_GPIO                             0x0ul
+++// #define SYS_ALT_MFP1_PA11_GPIO                            NULL
+++
+++// /* I2C1 SCL */
+++// #define SYS_GPA_MFP_PA11_I2C1_SCL                         (0x01ul << GPA_MFP11)
+++// #define SYS_ALT_MFP_PA11_I2C1_SCL                         0x0ul
+++// #define SYS_ALT_MFP1_PA11_I2C1_SCL                        NULL
+++
+++// /* SPI1 CLK */
+++// #define SYS_GPA_MFP_PA11_SPI1_CLK                         0x0ul
+++// #define SYS_ALT_MFP_PA11_SPI1_CLK                         (0x01ul << GPA_MFP11)
+++// #define SYS_ALT_MFP1_PA11_SPI1_CLK                        NULL
+++
+++// /* SPI2 MOSI0 */
+++// #define SYS_GPA_MFP_PA11_SPI2_MOSI0                       (0x01ul << GPA_MFP11)
+++// #define SYS_ALT_MFP_PA11_SPI2_MOSI0                       (0x01ul << SYS_ALT_MFP_PA11_MFP1_Pos)
+++// #define SYS_ALT_MFP1_PA11_SPI2_MOSI0                      NULL
+++
+++// #define SYS_GPA_MFP_PA11_Msk                              (0x01ul << GPA_MFP11)
+++// #define SYS_ALT_MFP_PA11_Msk                              (0x01ul << SYS_ALT_MFP_PA11_MFP1_Pos)
+++// #define SYS_ALT_MFP1_PA11_Msk                             NULL
+++
+++// /* Pin 12 */
+++// /* GPIO */
+++// #define SYS_GPA_MFP_PA12_GPIO                             0x0ul
+++// #define SYS_ALT_MFP_PA12_GPIO                             NULL
+++// #define SYS_ALT_MFP1_PA12_GPIO                            NULL
+++
+++// /* PWM0 */
+++// #define SYS_GPA_MFP_PA12_PWM0                             (0x01ul << GPA_MFP12)
+++// #define SYS_ALT_MFP_PA12_PWM0                             NULL
+++// #define SYS_ALT_MFP1_PA12_PWM0                            NULL
+++
+++// #define SYS_GPA_MFP_PA12_Msk                              (0x01ul << GPA_MFP12)
+++// #define SYS_ALT_MFP_PA12_Msk                              NULL
+++// #define SYS_ALT_MFP1_PA12_Msk                             NULL
+++
+++// /* Pin 13 */
+++// /* GPIO */
+++// #define SYS_GPA_MFP_PA13_GPIO                             0x0ul
+++// #define SYS_ALT_MFP_PA13_GPIO                             NULL
+++// #define SYS_ALT_MFP1_PA13_GPIO                            NULL
+++
+++// /* PWM1 */
+++// #define SYS_GPA_MFP_PA13_PWM1                             (0x01ul << GPA_MFP13)
+++// #define SYS_ALT_MFP_PA13_PWM1                             NULL
+++// #define SYS_ALT_MFP1_PA13_PWM1                            NULL
+++
+++// #define SYS_GPA_MFP_PA13_Msk                              (0x01ul << GPA_MFP13)
+++// #define SYS_ALT_MFP_PA13_Msk                              NULL
+++// #define SYS_ALT_MFP1_PA13_Msk                             NULL
+++
+++// /* Pin 14 */
+++// /* GPIO */
+++// #define SYS_GPA_MFP_PA14_GPIO                             0x0ul
+++// #define SYS_ALT_MFP_PA14_GPIO                             NULL
+++// #define SYS_ALT_MFP1_PA14_GPIO                            NULL
+++
+++// /* PWM2 */
+++// #define SYS_GPA_MFP_PA14_PWM2                             (0x01ul << GPA_MFP14)
+++// #define SYS_ALT_MFP_PA14_PWM2                             NULL
+++// #define SYS_ALT_MFP1_PA14_PWM2                            NULL
+++
+++// #define SYS_GPA_MFP_PA14_Msk                              (0x01ul << GPA_MFP14)
+++// #define SYS_ALT_MFP_PA14_Msk                              NULL
+++// #define SYS_ALT_MFP1_PA14_Msk                             NULL
+++
+++// /* Pin 15 */
+++// /* GPIO */
+++// #define SYS_GPA_MFP_PA15_GPIO                             0x0ul
+++// #define SYS_ALT_MFP_PA15_GPIO                             0x0ul
+++// #define SYS_ALT_MFP1_PA15_GPIO                            NULL
+++
+++// /* PWM3 */
+++// #define SYS_GPA_MFP_PA15_PWM3                             (0x01ul << GPA_MFP15)
+++// #define SYS_ALT_MFP_PA15_PWM3                             0x0ul
+++// #define SYS_ALT_MFP1_PA15_PWM3                            NULL
+++
+++// /* CLK0 */
+++// #define SYS_GPA_MFP_PA15_CLKO                             0x0ul
+++// #define SYS_ALT_MFP_PA15_CLKO                             (0x01ul << SYS_ALT_MFP_PA15_MFP1_Pos)
+++// #define SYS_ALT_MFP1_PA15_CLKO                            NULL
+++
+++// /* I2S MCLK */
+++// #define SYS_GPA_MFP_PA15_I2S_MCLK                         (0x01ul << GPA_MFP15)
+++// #define SYS_ALT_MFP_PA15_I2S_MCLK                         (0x01ul << SYS_ALT_MFP_PA15_MFP1_Pos)
+++// #define SYS_ALT_MFP1_PA15_I2S_MCLK                        NULL
+++
+++// #define SYS_GPA_MFP_PA15_Msk                              (0x01ul << GPA_MFP15)
+++// #define SYS_ALT_MFP_PA15_Msk                              (0x01ul << SYS_ALT_MFP_PA15_MFP1_Pos)
+++// #define SYS_ALT_MFP1_PA15_Msk                             NULL
+++
+++// /**
+++//  * GPIO Port B Alternative Pin Modes
+++//  *
+++//  */
+++
+++// /* Pin 0 */
+++// /* GPIO */
+++// #define SYS_GPB_MFP_PB0_GPIO                              0x0ul
+++// #define SYS_ALT_MFP_PB0_GPIO                              NULL
+++// #define SYS_ALT_MFP1_PB0_GPIO                             NULL
+++
+++// /* UART0 RXD */
+++// #define SYS_GPB_MFP_PB0_UART0_RXD                         (0x01ul << 0)
+++// #define SYS_ALT_MFP_PB0_UART0_RXD                         NULL
+++// #define SYS_ALT_MFP1_PB0_UART0_RXD                        NULL
+++
+++// #define SYS_GPB_MFP_PB0_Msk                               (0x01ul << 0)
+++// #define SYS_ALT_MFP_PB0_Msk                               NULL
+++// #define SYS_ALT_MFP1_PB0_Msk                              NULL
+++
+++// /* Pin 1 */
+++// /* GPIO */
+++// #define SYS_GPB_MFP_PB1_GPIO                              0x0ul
+++// #define SYS_ALT_MFP_PB1_GPIO                              NULL
+++// #define SYS_ALT_MFP1_PB1_GPIO                             NULL
+++
+++// /* UART0 TXD */
+++// #define SYS_GPB_MFP_PB1_UART0_TXD                         (0x01ul << 1)
+++// #define SYS_ALT_MFP_PB1_UART0_TXD                         NULL
+++// #define SYS_ALT_MFP1_PB1_UART0_TXD                        NULL
+++
+++// #define SYS_GPB_MFP_PB1_Msk                               (0x01ul << 1)
+++// #define SYS_ALT_MFP_PB1_Msk                               NULL
+++// #define SYS_ALT_MFP1_PB1_Msk                              NULL
+++
+++// /* Pin 2 */
+++// /* GPIO */
+++// #define SYS_GPB_MFP_PB2_GPIO                              0x0ul
+++// #define SYS_ALT_MFP_PB2_GPIO                              0x0ul
+++// #define SYS_ALT_MFP1_PB2_GPIO                             NULL
+++
+++// /* UART0 nRTS */
+++// #define SYS_GPB_MFP_PB2_UART0_nRTS                        (0x01ul << 2)
+++// #define SYS_ALT_MFP_PB2_UART0_nRTS                        0x0ul
+++// #define SYS_ALT_MFP1_PB2_UART0_nRTS                       NULL
+++
+++// /* TM2_EXT */
+++// #define SYS_GPB_MFP_PB2_TM2_EXT                           (0x01ul << 2)
+++// #define SYS_ALT_MFP_PB2_TM2_EXT                           (0x01ul << SYS_ALT_MFP_PB2_MFP1_Pos)
+++// #define SYS_ALT_MFP1_PB2_TM2_EXT                          NULL
+++
+++// #define SYS_GPB_MFP_PB2_Msk                               (0x01ul << 2)
+++// #define SYS_ALT_MFP_PB2_Msk                               (0x01ul << SYS_ALT_MFP_PB2_MFP1_Pos)
+++// #define SYS_ALT_MFP1_PB2_Msk                              NULL
+++
+++// /* Pin 3 */
+++// /* GPIO */
+++// #define SYS_GPB_MFP_PB3_GPIO                              0x0ul
+++// #define SYS_ALT_MFP_PB3_GPIO                              0x0ul
+++// #define SYS_ALT_MFP1_PB3_GPIO                             NULL
+++
+++// /* UART0 nCTS */
+++// #define SYS_GPB_MFP_PB3_UART0_nCTS                        (0x01ul << 3)
+++// #define SYS_ALT_MFP_PB3_UART0_nCTS                        0x0ul
+++// #define SYS_ALT_MFP1_PB3_UART0_nCTS                       NULL
+++
+++// /* TM3_EXT */
+++// #define SYS_GPB_MFP_PB3_TM3_EXT                           (0x01ul << 3)
+++// #define SYS_ALT_MFP_PB3_TM3_EXT                           (0x01ul << SYS_ALT_MFP_PB3_MFP1_Pos)
+++// #define SYS_ALT_MFP1_PB3_TM3_EXT                          NULL
+++
+++// #define SYS_GPB_MFP_PB3_Msk                               (0x01ul << 3)
+++// #define SYS_ALT_MFP_PB3_Msk                               (0x01ul << SYS_ALT_MFP_PB3_MFP1_Pos)
+++// #define SYS_ALT_MFP1_PB3_Msk                              NULL
+++
+++// /* Pin 4 */
+++// /* GPIO */
+++// #define SYS_GPB_MFP_PB4_GPIO                              0x0ul
+++// #define SYS_ALT_MFP_PB4_GPIO                              0x0ul
+++// #define SYS_ALT_MFP1_PB4_GPIO                             NULL
+++
+++// /* UART1 RXD */
+++// #define SYS_GPB_MFP_PB4_UART1_RXD                         (0x01ul << 4)
+++// #define SYS_ALT_MFP_PB4_UART1_RXD                         0x0ul
+++// #define SYS_ALT_MFP1_PB4_UART1_RXD                        NULL
+++
+++// /* SPI2 SS0 */
+++// #define SYS_GPB_MFP_PB4_SPI2_SS0                          0x0ul
+++// #define SYS_ALT_MFP_PB4_SPI2_SS0                          (0x01ul << SYS_ALT_MFP_PB4_MFP1_Pos)
+++// #define SYS_ALT_MFP1_PB4_SPI2_SS0                         NULL
+++
+++// /* SPI1 SS1 */
+++// #define SYS_GPB_MFP_PB4_SPI1_SS1                          (0x01ul << 4)
+++// #define SYS_ALT_MFP_PB4_SPI1_SS1                          (0x01ul << SYS_ALT_MFP_PB4_MFP1_Pos)
+++// #define SYS_ALT_MFP1_PB4_SPI1_SS1                         NULL
+++
+++// #define SYS_GPB_MFP_PB4_Msk                               (0x01ul << 4)
+++// #define SYS_ALT_MFP_PB4_Msk                               (0x01ul << SYS_ALT_MFP_PB4_MFP1_Pos)
+++// #define SYS_ALT_MFP1_PB4_Msk                              NULL
+++
+++// /* Pin 5 */
+++// /* GPIO */
+++// #define SYS_GPB_MFP_PB5_GPIO                              0x0ul
+++// #define SYS_ALT_MFP_PB5_GPIO                              0x0ul
+++// #define SYS_ALT_MFP1_PB5_GPIO                             NULL
+++
+++// /* UART1 TXD */
+++// #define SYS_GPB_MFP_PB5_UART1_TXD                         (0x01ul << 5)
+++// #define SYS_ALT_MFP_PB5_UART1_TXD                         0x0ul
+++// #define SYS_ALT_MFP1_PB5_UART1_TXD                        NULL
+++
+++// /* SPI2 CLK */
+++// #define SYS_GPB_MFP_PB5_SPI2_CLK                          (0x01ul << 5)
+++// #define SYS_ALT_MFP_PB5_SPI2_CLK                          (0x01ul << SYS_ALT_MFP_PB5_MFP1_Pos)
+++// #define SYS_ALT_MFP1_PB5_SPI2_CLK                         NULL
+++
+++// #define SYS_GPB_MFP_PB5_Msk                               (0x01ul << 5)
+++// #define SYS_ALT_MFP_PB5_Msk                               (0x01ul << SYS_ALT_MFP_PB5_MFP1_Pos)
+++// #define SYS_ALT_MFP1_PB5_Msk                              NULL
+++
+++// /* Pin 6 */
+++// /* GPIO */
+++// #define SYS_GPB_MFP_PB6_GPIO                              0x0ul
+++// #define SYS_ALT_MFP_PB6_GPIO                              0x0ul
+++// #define SYS_ALT_MFP1_PB6_GPIO                             NULL
+++
+++// /* UART1 nRTS */
+++// #define SYS_GPB_MFP_PB6_UART1_nRTS                        (0x01ul << 6)
+++// #define SYS_ALT_MFP_PB6_UART1_nRTS                        0x0ul
+++// #define SYS_ALT_MFP1_PB6_UART1_nRTS                       NULL
+++
+++// /* SPI2 MOSI0 */
+++// #define SYS_GPB_MFP_PB6_SPI2_MOSI0                        (0x01ul << 6)
+++// #define SYS_ALT_MFP_PB6_SPI2_MOSI0                        (0x01ul << SYS_ALT_MFP_PB6_MFP1_Pos)
+++// #define SYS_ALT_MFP1_PB6_SPI2_MOSI0                       NULL
+++
+++// #define SYS_GPB_MFP_PB6_Msk                               (0x01ul << 6)
+++// #define SYS_ALT_MFP_PB6_Msk                               (0x01ul << SYS_ALT_MFP_PB6_MFP1_Pos)
+++// #define SYS_ALT_MFP1_PB6_Msk                              NULL
+++
+++// /* Pin 7 */
+++// /* GPIO */
+++// #define SYS_GPB_MFP_PB7_GPIO                              0x0ul
+++// #define SYS_ALT_MFP_PB7_GPIO                              0x0ul
+++// #define SYS_ALT_MFP1_PB7_GPIO                             NULL
+++
+++// /* UART1 nCTS */
+++// #define SYS_GPB_MFP_PB7_UART1_nCTS                        (0x01ul << 7)
+++// #define SYS_ALT_MFP_PB7_UART1_nCTS                        0x0ul
+++// #define SYS_ALT_MFP1_PB7_UART1_nCTS                       NULL
+++
+++// /* SPI2 MISO0 */
+++// #define SYS_GPB_MFP_PB7_SPI2_MISO0                        (0x01ul << 7)
+++// #define SYS_ALT_MFP_PB7_SPI2_MISO0                        (0x01ul << SYS_ALT_MFP_PB7_MFP1_Pos)
+++// #define SYS_ALT_MFP1_PB7_SPI2_MISO0                       NULL
+++
+++// #define SYS_GPB_MFP_PB7_Msk                               (0x01ul << 7)
+++// #define SYS_ALT_MFP_PB7_Msk                               (0x01ul << SYS_ALT_MFP_PB7_MFP1_Pos)
+++// #define SYS_ALT_MFP1_PB7_Msk                              NULL
+++
+++// /* Pin 8 */
+++// /* GPIO */
+++// #define SYS_GPB_MFP_PB8_GPIO                              0x0ul
+++// #define SYS_ALT_MFP_PB8_GPIO                              NULL
+++// #define SYS_ALT_MFP1_PB8_GPIO                             NULL
+++
+++// /* TM0 */
+++// #define SYS_GPB_MFP_PB8_TM0                               (0x01ul << 8)
+++// #define SYS_ALT_MFP_PB8_TM0                               NULL
+++// #define SYS_ALT_MFP1_PB8_TM0                              NULL
+++
+++// #define SYS_GPB_MFP_PB8_Msk                               (0x01ul << 8)
+++// #define SYS_ALT_MFP_PB8_Msk                               NULL
+++// #define SYS_ALT_MFP1_PB8_Msk                              NULL
+++
+++// /* Pin 9 */
+++// /* GPIO */
+++// #define SYS_GPB_MFP_PB9_GPIO                              0x0ul
+++// #define SYS_ALT_MFP_PB9_GPIO                              0x0ul
+++// #define SYS_ALT_MFP1_PB9_GPIO                             NULL
+++
+++// /* TM1 */
+++// #define SYS_GPB_MFP_PB9_TM1                               (0x01ul << 9)
+++// #define SYS_ALT_MFP_PB9_TM1                               0x0ul
+++// #define SYS_ALT_MFP1_PB9_TM1                              NULL
+++
+++// /* SPI1 SS1 */
+++// #define SYS_GPB_MFP_PB9_SPI1_SS1                          (0x01ul << 9)
+++// #define SYS_ALT_MFP_PB9_SPI1_SS1                          (0x01ul << SYS_ALT_MFP_PB9_MFP1_Pos)
+++// #define SYS_ALT_MFP1_PB9_SPI1_SS1                         NULL
+++
+++// /* PWM1 */
+++// #define SYS_GPB_MFP_PB9_PWM1                              0x0ul
+++// #define SYS_ALT_MFP_PB9_PWM1                              (0x01ul << SYS_ALT_MFP_PB9_MFP1_Pos)
+++// #define SYS_ALT_MFP1_PB9_PWM1                             NULL
+++
+++// #define SYS_GPB_MFP_PB9_Msk                               (0x01ul << 9)
+++// #define SYS_ALT_MFP_PB9_Msk                               (0x01ul << SYS_ALT_MFP_PB9_MFP1_Pos)
+++// #define SYS_ALT_MFP1_PB9_Msk                              NULL
+++
+++// /* Pin 10 */
+++// /* GPIO */
+++// #define SYS_GPB_MFP_PB10_GPIO                             0x0ul
+++// #define SYS_ALT_MFP_PB10_GPIO                             0x0ul
+++// #define SYS_ALT_MFP1_PB10_GPIO                            NULL
+++
+++// /* TM2 */
+++// #define SYS_GPB_MFP_PB10_TM2                              (0x01ul << 10)
+++// #define SYS_ALT_MFP_PB10_TM2                              0x0ul
+++// #define SYS_ALT_MFP1_PB10_TM2                             NULL
+++
+++// /* SPI0 SS1 */
+++// #define SYS_GPB_MFP_PB10_SPI0_SS1                         (0x01ul << 10)
+++// #define SYS_ALT_MFP_PB10_SPI0_SS1                         (0x01ul << SYS_ALT_MFP_PB10_MFP1_Pos)
+++// #define SYS_ALT_MFP1_PB10_SPI0_SS1                        NULL
+++
+++// #define SYS_GPB_MFP_PB10_Msk                              (0x01ul << 10)
+++// #define SYS_ALT_MFP_PB10_Msk                              (0x01ul << SYS_ALT_MFP_PB10_MFP1_Pos)
+++// #define SYS_ALT_MFP1_PB10_Msk                             NULL
+++
+++// /* Pin 12 */
+++// /* GPIO */
+++// #define SYS_GPB_MFP_PB12_GPIO                             0x0ul
+++// #define SYS_ALT_MFP_PB12_GPIO                             0x0ul
+++// #define SYS_ALT_MFP1_PB12_GPIO                            NULL
+++
+++// /* SPI1 SS0 */
+++// #define SYS_GPB_MFP_PB12_SPI1_SS0                         (0x01ul << 12)
+++// #define SYS_ALT_MFP_PB12_SPI1_SS0                         0x0ul
+++// #define SYS_ALT_MFP1_PB12_SPI1_SS0                        NULL
+++
+++// /* CLK0 */
+++// #define SYS_GPB_MFP_PB12_CLKO                             (0x01ul << 12)
+++// #define SYS_ALT_MFP_PB12_CLKO                             (0x01ul << SYS_ALT_MFP_PB12_MFP1_Pos)
+++// #define SYS_ALT_MFP1_PB12_CLKO                            NULL
+++
+++// #define SYS_GPB_MFP_PB12_Msk                              (0x01ul << 12)
+++// #define SYS_ALT_MFP_PB12_Msk                              (0x01ul << SYS_ALT_MFP_PB12_MFP1_Pos)
+++// #define SYS_ALT_MFP1_PB12_Msk                             NULL
+++
+++// /* Pin 13 */
+++// /* GPIO */
+++// #define SYS_GPB_MFP_PB13_GPIO                             0x0ul
+++// #define SYS_ALT_MFP_PB13_GPIO                             NULL
+++// #define SYS_ALT_MFP1_PB13_GPIO                            NULL
+++
+++// #define SYS_GPB_MFP_PB13_Msk                              (0x01ul << 13)
+++// #define SYS_ALT_MFP_PB13_Msk                              NULL
+++// #define SYS_ALT_MFP1_PB13_Msk                             NULL
+++
+++// /* Pin 14 */
+++// /* GPIO */
+++// #define SYS_GPB_MFP_PB14_GPIO                             0x0ul
+++// #define SYS_ALT_MFP_PB14_GPIO                             NULL
+++// #define SYS_ALT_MFP1_PB14_GPIO                            NULL
+++
+++// /* INT0 */
+++// #define SYS_GPB_MFP_PB14_INT0                             (0x01ul << 14)
+++// #define SYS_ALT_MFP_PB14_INT0                             NULL
+++// #define SYS_ALT_MFP1_PB14_INT0                            NULL
+++
+++// #define SYS_GPB_MFP_PB14_Msk                              (0x01ul << 14)
+++// #define SYS_ALT_MFP_PB14_Msk                              NULL
+++// #define SYS_ALT_MFP1_PB14_Msk                             NULL
+++
+++// /* Pin 15 */
+++// /* GPIO */
+++// #define SYS_GPB_MFP_PB15_GPIO                             0x0ul
+++// #define SYS_ALT_MFP_PB15_GPIO                             0x0ul
+++// #define SYS_ALT_MFP1_PB15_GPIO                            NULL
+++
+++// /* INT1 */
+++// #define SYS_GPB_MFP_PB15_INT1                             (0x01ul << 15)
+++// #define SYS_ALT_MFP_PB15_INT1                             0x0ul
+++// #define SYS_ALT_MFP1_PB15_INT1                            NULL
+++
+++// /* TM0_EXT */
+++// #define SYS_GPB_MFP_PB15_TM0_EXT                          (0x01ul << 15)
+++// #define SYS_ALT_MFP_PB15_TM0_EXT                          (0x01ul << SYS_ALT_MFP_PB15_MFP1_Pos)
+++// #define SYS_ALT_MFP1_PB15_TM0_EXT                         NULL
+++
+++// #define SYS_GPB_MFP_PB15_Msk                              (0x01ul << 15)
+++// #define SYS_ALT_MFP_PB15_Msk                              (0x01ul << SYS_ALT_MFP_PB15_MFP1_Pos)
+++// #define SYS_ALT_MFP1_PB15_Msk                             NULL
+++
+++// /**
+++//  * GPIO Port C Alternative Pin Modes
+++//  *
+++//  */
+++
+++// /* Pin 0 */
+++// /* GPIO */
+++// #define SYS_GPC_MFP_PC0_GPIO                              0x0ul
+++// #define SYS_ALT_MFP_PC0_GPIO                              0x0ul
+++// #define SYS_ALT_MFP1_PC0_GPIO                             NULL
+++
+++// /* SPI0 SS0 */
+++// #define SYS_GPC_MFP_PC0_SPI0_SS0                          (0x01ul << GPC_MFP0)
+++// #define SYS_ALT_MFP_PC0_SPI0_SS0                          0x0ul
+++// #define SYS_ALT_MFP1_PC0_SPI0_SS0                         NULL
+++
+++// /* I2S LRCLK */
+++// #define SYS_GPC_MFP_PC0_I2S_LRCLK                         (0x01ul << GPC_MFP0)
+++// #define SYS_ALT_MFP_PC0_I2S_LRCLK                         (0x01ul << SYS_ALT_MFP_PC0_MFP1_Pos)
+++// #define SYS_ALT_MFP1_PC0_I2S_LRCLK                        NULL
+++
+++// #define SYS_GPC_MFP_PC0_Msk                               (0x01ul << GPC_MFP0)
+++// #define SYS_ALT_MFP_PC0_Msk                               (0x01ul << SYS_ALT_MFP_PC0_MFP1_Pos)
+++// #define SYS_ALT_MFP1_PC0_Msk                              NULL
+++
+++// /* Pin 1 */
+++// /* GPIO */
+++// #define SYS_GPC_MFP_PC1_GPIO                              0x0ul
+++// #define SYS_ALT_MFP_PC1_GPIO                              0x0ul
+++// #define SYS_ALT_MFP1_PC1_GPIO                             NULL
+++
+++// /* SPI0 CLK */
+++// #define SYS_GPC_MFP_PC1_SPI0_CLK                          (0x01ul << GPC_MFP1)
+++// #define SYS_ALT_MFP_PC1_SPI0_CLK                          0x0ul
+++// #define SYS_ALT_MFP1_PC1_SPI0_CLK                         NULL
+++
+++// /* I2S BCLK */
+++// #define SYS_GPC_MFP_PC1_I2S_BCLK                          (0x01ul << GPC_MFP1)
+++// #define SYS_ALT_MFP_PC1_I2S_BCLK                          (0x01ul << SYS_ALT_MFP_PC1_MFP1_Pos)
+++// #define SYS_ALT_MFP1_PC1_I2S_BCLK                         NULL
+++
+++// #define SYS_GPC_MFP_PC1_Msk                               (0x01ul << GPC_MFP1)
+++// #define SYS_ALT_MFP_PC1_Msk                               (0x01ul << SYS_ALT_MFP_PC1_MFP1_Pos)
+++// #define SYS_ALT_MFP1_PC1_Msk                              NULL
+++
+++// /* Pin 2 */
+++// /* GPIO */
+++// #define SYS_GPC_MFP_PC2_GPIO                              0x0ul
+++// #define SYS_ALT_MFP_PC2_GPIO                              0x0ul
+++// #define SYS_ALT_MFP1_PC2_GPIO                             NULL
+++
+++// /* SPI0 MISO0 */
+++// #define SYS_GPC_MFP_PC2_SPI0_MISO0                        (0x01ul << GPC_MFP2)
+++// #define SYS_ALT_MFP_PC2_SPI0_MISO0                        0x0ul
+++// #define SYS_ALT_MFP1_PC2_SPI0_MISO0                       NULL
+++
+++// /* I2S DI */
+++// #define SYS_GPC_MFP_PC2_I2S_DI                            (0x01ul << GPC_MFP2)
+++// #define SYS_ALT_MFP_PC2_I2S_DI                            (0x01ul << SYS_ALT_MFP_PC2_MFP1_Pos)
+++// #define SYS_ALT_MFP1_PC2_I2S_DI                           NULL
+++
+++// #define SYS_GPC_MFP_PC2_Msk                               (0x01ul << GPC_MFP2)
+++// #define SYS_ALT_MFP_PC2_Msk                               (0x01ul << SYS_ALT_MFP_PC2_MFP1_Pos)
+++// #define SYS_ALT_MFP1_PC2_Msk                              NULL
+++
+++// /* Pin 3 */
+++// /* GPIO */
+++// #define SYS_GPC_MFP_PC3_GPIO                              0x0ul
+++// #define SYS_ALT_MFP_PC3_GPIO                              0x0ul
+++// #define SYS_ALT_MFP1_PC3_GPIO                             NULL
+++
+++// /* SPI0 MOSI0 */
+++// #define SYS_GPC_MFP_PC3_SPI0_MOSI0                        (0x01ul << GPC_MFP3)
+++// #define SYS_ALT_MFP_PC3_SPI0_MOSI0                        0x0ul
+++// #define SYS_ALT_MFP1_PC3_SPI0_MOSI0                       NULL
+++
+++// /* I2S DO */
+++// #define SYS_GPC_MFP_PC3_I2S_DO                            (0x01ul << GPC_MFP3)
+++// #define SYS_ALT_MFP_PC3_I2S_DO                            (0x01ul << SYS_ALT_MFP_PC3_MFP1_Pos)
+++// #define SYS_ALT_MFP1_PC3_I2S_DO                           NULL
+++
+++// #define SYS_GPC_MFP_PC3_Msk                               (0x01ul << GPC_MFP3)
+++// #define SYS_ALT_MFP_PC3_Msk                               (0x01ul << SYS_ALT_MFP_PC3_MFP1_Pos)
+++// #define SYS_ALT_MFP1_PC3_Msk                              NULL
+++
+++// /* Pin 4 */
+++// /* GPIO */
+++// #define SYS_GPC_MFP_PC4_GPIO                              0x0ul
+++// #define SYS_ALT_MFP_PC4_GPIO                              0x0ul
+++// #define SYS_ALT_MFP1_PC4_GPIO                             NULL
+++
+++// /* SPI0 MISO1 */
+++// #define SYS_GPC_MFP_PC4_SPI0_MISO1                        (0x01ul << GPC_MFP4)
+++// #define SYS_ALT_MFP_PC4_SPI0_MISO1                        0x0ul
+++// #define SYS_ALT_MFP1_PC4_SPI0_MISO1                       NULL
+++
+++// /* UART0 RXD */
+++// #define SYS_GPC_MFP_PC4_UART0_RXD                         (0x01ul << GPC_MFP4)
+++// #define SYS_ALT_MFP_PC4_UART0_RXD                         (0x01ul << SYS_ALT_MFP_PC4_MFP1_Pos)
+++// #define SYS_ALT_MFP1_PC4_UART0_RXD                        NULL
+++
+++// #define SYS_GPC_MFP_PC4_Msk                               (0x01ul << GPC_MFP4)
+++// #define SYS_ALT_MFP_PC4_Msk                               (0x01ul << SYS_ALT_MFP_PC4_MFP1_Pos)
+++// #define SYS_ALT_MFP1_PC4_Msk                              NULL
+++
+++// /* Pin 5 */
+++// /* GPIO */
+++// #define SYS_GPC_MFP_PC5_GPIO                              0x0ul
+++// #define SYS_ALT_MFP_PC5_GPIO                              0x0ul
+++// #define SYS_ALT_MFP1_PC5_GPIO                             NULL
+++
+++// /* SPI0 MOSI1 */
+++// #define SYS_GPC_MFP_PC5_SPI0_MOSI1                        (0x01ul << GPC_MFP5)
+++// #define SYS_ALT_MFP_PC5_SPI0_MOSI1                        0x0ul
+++// #define SYS_ALT_MFP1_PC5_SPI0_MOSI1                       NULL
+++
+++// /* UART0 TXD */
+++// #define SYS_GPC_MFP_PC5_UART0_TXD                         (0x01ul << GPC_MFP5)
+++// #define SYS_ALT_MFP_PC5_UART0_TXD                         (0x01ul << SYS_ALT_MFP_PC5_MFP1_Pos)
+++// #define SYS_ALT_MFP1_PC5_UART0_TXD                        NULL
+++
+++// #define SYS_GPC_MFP_PC5_Msk                               (0x01ul << GPC_MFP5)
+++// #define SYS_ALT_MFP_PC5_Msk                               (0x01ul << SYS_ALT_MFP_PC5_MFP1_Pos)
+++// #define SYS_ALT_MFP1_PC5_Msk                              NULL
+++
+++// /* Pin 8 */
+++// /* GPIO */
+++// #define SYS_GPC_MFP_PC8_GPIO                              0x0ul
+++// #define SYS_ALT_MFP_PC8_GPIO                              NULL
+++// #define SYS_ALT_MFP1_PC8_GPIO                             0x0ul
+++
+++// /* SPI1 SS0 */
+++// #define SYS_GPC_MFP_PC8_SPI1_SS0                          (0x01ul << GPC_MFP8)
+++// #define SYS_ALT_MFP_PC8_SPI1_SS0                          NULL
+++// #define SYS_ALT_MFP1_PC8_SPI1_SS0                         0x0ul
+++
+++// /* PWM0 */
+++// #define SYS_GPC_MFP_PC8_PWM0                              (0x01ul << GPC_MFP8)
+++// #define SYS_ALT_MFP_PC8_PWM0                              NULL
+++// #define SYS_ALT_MFP1_PC8_PWM0                             (0x01ul << SYS_ALT_MFP1_PC8_MFP1_Pos)
+++
+++// #define SYS_GPC_MFP_PC8_Msk                               (0x01ul << GPC_MFP8)
+++// #define SYS_ALT_MFP_PC8_Msk                               NULL
+++// #define SYS_ALT_MFP1_PC8_Msk                              (0x01ul << SYS_ALT_MFP1_PC8_MFP1_Pos)
+++
+++// /* Pin 9 */
+++// /* GPIO */
+++// #define SYS_GPC_MFP_PC9_GPIO                              0x0ul
+++// #define SYS_ALT_MFP_PC9_GPIO                              NULL
+++// #define SYS_ALT_MFP1_PC9_GPIO                             NULL
+++
+++// /* SPI1 CLK */
+++// #define SYS_GPC_MFP_PC9_SPI1_CLK                          (0x01ul << GPC_MFP9)
+++// #define SYS_ALT_MFP_PC9_SPI1_CLK                          NULL
+++// #define SYS_ALT_MFP1_PC9_SPI1_CLK                         NULL
+++
+++// #define SYS_GPC_MFP_PC9_Msk                               (0x01ul << GPC_MFP9)
+++// #define SYS_ALT_MFP_PC9_Msk                               NULL
+++// #define SYS_ALT_MFP1_PC9_Msk                              NULL
+++
+++// /* Pin 10 */
+++// /* GPIO */
+++// #define SYS_GPC_MFP_PC10_GPIO                             0x0ul
+++// #define SYS_ALT_MFP_PC10_GPIO                             NULL
+++// #define SYS_ALT_MFP1_PC10_GPIO                            NULL
+++
+++// /* SPI1 MISO0 */
+++// #define SYS_GPC_MFP_PC10_SPI1_MISO0                       (0x01ul << GPC_MFP10)
+++// #define SYS_ALT_MFP_PC10_SPI1_MISO0                       NULL
+++// #define SYS_ALT_MFP1_PC10_SPI1_MISO0                      NULL
+++
+++// #define SYS_GPC_MFP_PC10_Msk                              (0x01ul << GPC_MFP10)
+++// #define SYS_ALT_MFP_PC10_Msk                              NULL
+++// #define SYS_ALT_MFP1_PC10_Msk                             NULL
+++
+++// /* Pin 11 */
+++// /* GPIO */
+++// #define SYS_GPC_MFP_PC11_GPIO                             0x0ul
+++// #define SYS_ALT_MFP_PC11_GPIO                             NULL
+++// #define SYS_ALT_MFP1_PC11_GPIO                            NULL
+++
+++// /* SPI1 MOSI0 */
+++// #define SYS_GPC_MFP_PC11_SPI1_MOSI0                       (0x01ul << GPC_MFP11)
+++// #define SYS_ALT_MFP_PC11_SPI1_MOSI0                       NULL
+++// #define SYS_ALT_MFP1_PC11_SPI1_MOSI0                      NULL
+++
+++// #define SYS_GPC_MFP_PC11_Msk                              (0x01ul << GPC_MFP11)
+++// #define SYS_ALT_MFP_PC11_Msk                              NULL
+++// #define SYS_ALT_MFP1_PC11_Msk                             NULL
+++
+++// /* Pin 12 */
+++// /* GPIO */
+++// #define SYS_GPC_MFP_PC12_GPIO                             0x0ul
+++// #define SYS_ALT_MFP_PC12_GPIO                             0x0ul
+++// #define SYS_ALT_MFP1_PC12_GPIO                            NULL
+++
+++// /* SPI1 MISO1 */
+++// #define SYS_GPC_MFP_PC12_SPI1_MISO1                       (0x01ul << GPC_MFP12)
+++// #define SYS_ALT_MFP_PC12_SPI1_MISO1                       0x0ul
+++// #define SYS_ALT_MFP1_PC12_SPI1_MISO1                      NULL
+++
+++// /* I2S MCLK */
+++// #define SYS_GPC_MFP_PC12_I2S_MCLK                         0x0ul
+++// #define SYS_ALT_MFP_PC12_I2S_MCLK                         (0x01ul << SYS_ALT_MFP_PC12_MFP1_Pos)
+++// #define SYS_ALT_MFP1_PC12_I2S_MCLK                        NULL
+++
+++// /* PWM2 */
+++// #define SYS_GPC_MFP_PC12_PWM2                             (0x01ul << GPC_MFP12)
+++// #define SYS_ALT_MFP_PC12_PWM2                             (0x01ul << SYS_ALT_MFP_PC12_MFP1_Pos)
+++// #define SYS_ALT_MFP1_PC12_PWM2                            NULL
+++
+++// #define SYS_GPC_MFP_PC12_Msk                              (0x01ul << GPC_MFP12)
+++// #define SYS_ALT_MFP_PC12_Msk                              (0x01ul << SYS_ALT_MFP_PC12_MFP1_Pos)
+++// #define SYS_ALT_MFP1_PC12_Msk                             NULL
+++
+++// /* Pin 12 */
+++// /* GPIO */
+++// #define SYS_GPC_MFP_PC13_GPIO                             0x0ul
+++// #define SYS_ALT_MFP_PC13_GPIO                             0x0ul
+++// #define SYS_ALT_MFP1_PC13_GPIO                            NULL
+++
+++// /* SPI1 MOSI1 */
+++// #define SYS_GPC_MFP_PC13_SPI1_MOSI1                       (0x01ul << GPC_MFP13)
+++// #define SYS_ALT_MFP_PC13_SPI1_MOSI1                       0x0ul
+++// #define SYS_ALT_MFP1_PC13_SPI1_MOSI1                      NULL
+++
+++// /* CLK0 */
+++// #define SYS_GPC_MFP_PC13_CLKO                             0x0ul
+++// #define SYS_ALT_MFP_PC13_CLKO                             (0x01ul << SYS_ALT_MFP_PC13_MFP1_Pos)
+++// #define SYS_ALT_MFP1_PC13_CLKO                            NULL
+++
+++// /* PWM3 */
+++// #define SYS_GPC_MFP_PC13_PWM3                             (0x01ul << GPC_MFP13)
+++// #define SYS_ALT_MFP_PC13_PWM3                             (0x01ul << SYS_ALT_MFP_PC13_MFP1_Pos)
+++// #define SYS_ALT_MFP1_PC13_PWM3                            NULL
+++
+++// #define SYS_GPC_MFP_PC13_Msk                              (0x01ul << GPC_MFP13)
+++// #define SYS_ALT_MFP_PC13_Msk                              (0x01ul << SYS_ALT_MFP_PC13_MFP1_Pos)
+++// #define SYS_ALT_MFP1_PC13_Msk                             NULL
+++
+++// /**
+++//  * GPIO Port D Alternative Pin Modes
+++//  *
+++//  */
+++
+++// /* Pin 0 */
+++// /* GPIO */
+++// #define SYS_GPD_MFP_PD0_GPIO                              0x0ul
+++// #define SYS_ALT_MFP_PD0_GPIO                              NULL
+++// #define SYS_ALT_MFP1_PD0_GPIO                             0x0ul
+++
+++// /* SPI2 SS0 */
+++// #define SYS_GPD_MFP_PD0_SPI2_SS0                          0x0ul
+++// #define SYS_ALT_MFP_PD0_SPI2_SS0                          NULL
+++// #define SYS_ALT_MFP1_PD0_SPI2_SS0                         (0x01ul << SYS_ALT_MFP1_PD0_MFP1_Pos)
+++
+++// /* ADC0 */
+++// #define SYS_GPD_MFP_PD0_ADC0                              (0x01ul << GPD_MFP0)
+++// #define SYS_ALT_MFP_PD0_ADC0                              NULL
+++// #define SYS_ALT_MFP1_PD0_ADC0                             (0x01ul << SYS_ALT_MFP1_PD0_MFP1_Pos)
+++
+++// #define SYS_GPD_MFP_PD0_Msk                               (0x01ul << GPD_MFP0)
+++// #define SYS_ALT_MFP_PD0_Msk                               NULL
+++// #define SYS_ALT_MFP1_PD0_Msk                              (0x01ul << SYS_ALT_MFP1_PD0_MFP1_Pos)
+++
+++// /* Pin 1 */
+++// /* GPIO */
+++// #define SYS_GPD_MFP_PD1_GPIO                              0x0ul
+++// #define SYS_ALT_MFP_PD1_GPIO                              NULL
+++// #define SYS_ALT_MFP1_PD1_GPIO                             0x0ul
+++
+++// /* SPI0 SS1 */
+++// #define SYS_GPD_MFP_PD1_SPI0_SS1                          (0x01ul << GPD_MFP1)
+++// #define SYS_ALT_MFP_PD1_SPI0_SS1                          NULL
+++// #define SYS_ALT_MFP1_PD1_SPI0_SS1                         0x0ul
+++
+++// /* SPI2 CLK */
+++// #define SYS_GPD_MFP_PD1_SPI2_CLK                          0x0ul
+++// #define SYS_ALT_MFP_PD1_SPI2_CLK                          NULL
+++// #define SYS_ALT_MFP1_PD1_SPI2_CLK                         (0x01ul << SYS_ALT_MFP1_PD1_MFP1_Pos)
+++
+++// /* ADC1 */
+++// #define SYS_GPD_MFP_PD1_ADC1                              (0x01ul << GPD_MFP1)
+++// #define SYS_ALT_MFP_PD1_ADC1                              NULL
+++// #define SYS_ALT_MFP1_PD1_ADC1                             (0x01ul << SYS_ALT_MFP1_PD1_MFP1_Pos)
+++
+++// #define SYS_GPD_MFP_PD1_Msk                               (0x01ul << GPD_MFP1)
+++// #define SYS_ALT_MFP_PD1_Msk                               NULL
+++// #define SYS_ALT_MFP1_PD1_Msk                              (0x01ul << SYS_ALT_MFP1_PD1_MFP1_Pos)
+++
+++// /* Pin 2 */
+++// /* GPIO */
+++// #define SYS_GPD_MFP_PD2_GPIO                              0x0ul
+++// #define SYS_ALT_MFP_PD2_GPIO                              NULL
+++// #define SYS_ALT_MFP1_PD2_GPIO                             0x0ul
+++
+++// /* SPI0 MISO1 */
+++// #define SYS_GPD_MFP_PD2_SPI0_MISO1                        (0x01ul << GPD_MFP2)
+++// #define SYS_ALT_MFP_PD2_SPI0_MISO1                        NULL
+++// #define SYS_ALT_MFP1_PD2_SPI0_MISO1                       0x0ul
+++
+++// /* SPI2 MISO0 */
+++// #define SYS_GPD_MFP_PD2_SPI2_MISO0                        0x0ul
+++// #define SYS_ALT_MFP_PD2_SPI2_MISO0                        NULL
+++// #define SYS_ALT_MFP1_PD2_SPI2_MISO0                       (0x01ul << SYS_ALT_MFP1_PD2_MFP1_Pos)
+++
+++// /* ADC2 */
+++// #define SYS_GPD_MFP_PD2_ADC2                              (0x01ul << GPD_MFP2)
+++// #define SYS_ALT_MFP_PD2_ADC2                              NULL
+++// #define SYS_ALT_MFP1_PD2_ADC2                             (0x01ul << SYS_ALT_MFP1_PD2_MFP1_Pos)
+++
+++// #define SYS_GPD_MFP_PD2_Msk                               (0x01ul << GPD_MFP2)
+++// #define SYS_ALT_MFP_PD2_Msk                               NULL
+++// #define SYS_ALT_MFP1_PD2_Msk                              (0x01ul << SYS_ALT_MFP1_PD2_MFP1_Pos)
+++
+++// /* Pin 3 */
+++// /* GPIO */
+++// #define SYS_GPD_MFP_PD3_GPIO                              0x0ul
+++// #define SYS_ALT_MFP_PD3_GPIO                              NULL
+++// #define SYS_ALT_MFP1_PD3_GPIO                             0x0ul
+++
+++// /* SPI0 MOSI1 */
+++// #define SYS_GPD_MFP_PD3_SPI0_MOSI1                        (0x01ul << GPD_MFP3)
+++// #define SYS_ALT_MFP_PD3_SPI0_MOSI1                        NULL
+++// #define SYS_ALT_MFP1_PD3_SPI0_MOSI1                       0x0ul
+++
+++// /* SPI2 MOSI0 */
+++// #define SYS_GPD_MFP_PD3_SPI2_MOSI0                        0x0ul
+++// #define SYS_ALT_MFP_PD3_SPI2_MOSI0                        NULL
+++// #define SYS_ALT_MFP1_PD3_SPI2_MOSI0                       (0x01ul << SYS_ALT_MFP1_PD3_MFP1_Pos)
+++
+++// /* ADC3 */
+++// #define SYS_GPD_MFP_PD3_ADC3                              (0x01ul << GPD_MFP3)
+++// #define SYS_ALT_MFP_PD3_ADC3                              NULL
+++// #define SYS_ALT_MFP1_PD3_ADC3                             (0x01ul << SYS_ALT_MFP1_PD3_MFP1_Pos)
+++
+++// #define SYS_GPD_MFP_PD3_Msk                               (0x01ul << GPD_MFP3)
+++// #define SYS_ALT_MFP_PD3_Msk                               NULL
+++// #define SYS_ALT_MFP1_PD3_Msk                              (0x01ul << SYS_ALT_MFP1_PD3_MFP1_Pos)
+++
+++// /* Pin 4 */
+++// /* GPIO */
+++// #define SYS_GPD_MFP_PD4_GPIO                              0x0ul
+++// #define SYS_ALT_MFP_PD4_GPIO                              NULL
+++// #define SYS_ALT_MFP1_PD4_GPIO                             0x0ul
+++
+++// /* SPI2 MISO1 */
+++// #define SYS_GPD_MFP_PD4_SPI2_MISO1                        0x0ul
+++// #define SYS_ALT_MFP_PD4_SPI2_MISO1                        NULL
+++// #define SYS_ALT_MFP1_PD4_SPI2_MISO1                       (0x01ul << SYS_ALT_MFP1_PD4_MFP1_Pos)
+++
+++// /* ADC4 */
+++// #define SYS_GPD_MFP_PD4_ADC4                              (0x01ul << GPD_MFP4)
+++// #define SYS_ALT_MFP_PD4_ADC4                              NULL
+++// #define SYS_ALT_MFP1_PD4_ADC4                             (0x01ul << SYS_ALT_MFP1_PD4_MFP1_Pos)
+++
+++// #define SYS_GPD_MFP_PD4_Msk                               (0x01ul << GPD_MFP4)
+++// #define SYS_ALT_MFP_PD4_Msk                               NULL
+++// #define SYS_ALT_MFP1_PD4_Msk                              (0x01ul << SYS_ALT_MFP1_PD4_MFP1_Pos)
+++
+++// /* Pin 5 */
+++// /* GPIO */
+++// #define SYS_GPD_MFP_PD5_GPIO                              0x0ul
+++// #define SYS_ALT_MFP_PD5_GPIO                              NULL
+++// #define SYS_ALT_MFP1_PD5_GPIO                             0x0ul
+++
+++// /* SPI2 MOSI1 */
+++// #define SYS_GPD_MFP_PD5_SPI2_MOSI1                        0x0ul
+++// #define SYS_ALT_MFP_PD5_SPI2_MOSI1                        NULL
+++// #define SYS_ALT_MFP1_PD5_SPI2_MOSI1                       (0x01ul << SYS_ALT_MFP1_PD5_MFP1_Pos)
+++
+++// /* ADC5 */
+++// #define SYS_GPD_MFP_PD5_ADC5                              (0x01ul << GPD_MFP5)
+++// #define SYS_ALT_MFP_PD5_ADC5                              NULL
+++// #define SYS_ALT_MFP1_PD5_ADC5                             (0x01ul << SYS_ALT_MFP1_PD5_MFP1_Pos)
+++
+++// #define SYS_GPD_MFP_PD5_Msk                               (0x01ul << GPD_MFP5)
+++// #define SYS_ALT_MFP_PD5_Msk                               NULL
+++// #define SYS_ALT_MFP1_PD5_Msk                              (0x01ul << SYS_ALT_MFP1_PD5_MFP1_Pos)
+++
+++// /* Pin 8 */
+++// /* GPIO */
+++// #define SYS_GPD_MFP_PD8_GPIO                              0x0ul
+++// #define SYS_ALT_MFP_PD8_GPIO                              NULL
+++// #define SYS_ALT_MFP1_PD8_GPIO                             NULL
+++
+++// /* SPI1 MOSI0 */
+++// #define SYS_GPD_MFP_PD8_SPI1_MOSI0                        (0x01ul << GPD_MFP8)
+++// #define SYS_ALT_MFP_PD8_SPI1_MOSI0                        NULL
+++// #define SYS_ALT_MFP1_PD8_SPI1_MOSI0                       NULL
+++
+++// #define SYS_GPD_MFP_PD8_Msk                               (0x01ul << GPD_MFP8)
+++// #define SYS_ALT_MFP_PD8_Msk                               NULL
+++// #define SYS_ALT_MFP1_PD8_Msk                              NULL
+++
+++// /* Pin 9 */
+++// /* GPIO */
+++// #define SYS_GPD_MFP_PD9_GPIO                              0x0ul
+++// #define SYS_ALT_MFP_PD9_GPIO                              NULL
+++// #define SYS_ALT_MFP1_PD9_GPIO                             NULL
+++
+++// #define SYS_GPD_MFP_PD9_Msk                               (0x01ul << GPD_MFP9)
+++// #define SYS_ALT_MFP_PD9_Msk                               NULL
+++// #define SYS_ALT_MFP1_PD9_Msk                              NULL
+++
+++// /* Pin 10 */
+++// /* GPIO */
+++// #define SYS_GPD_MFP_PD10_GPIO                             0x0ul
+++// #define SYS_ALT_MFP_PD10_GPIO                             NULL
+++// #define SYS_ALT_MFP1_PD10_GPIO                            NULL
+++
+++// /* CLK0 */
+++// #define SYS_GPD_MFP_PD10_CLKO                             (0x01ul << GPD_MFP10)
+++// #define SYS_ALT_MFP_PD10_CLKO                             NULL
+++// #define SYS_ALT_MFP1_PD10_CLKO                            NULL
+++
+++// #define SYS_GPD_MFP_PD10_Msk                              (0x01ul << GPD_MFP10)
+++// #define SYS_ALT_MFP_PD10_Msk                              NULL
+++// #define SYS_ALT_MFP1_PD10_Msk                             NULL
+++
+++// /* Pin 11 */
+++// /* GPIO */
+++// #define SYS_GPD_MFP_PD11_GPIO                             0x0ul
+++// #define SYS_ALT_MFP_PD11_GPIO                             NULL
+++// #define SYS_ALT_MFP1_PD11_GPIO                            NULL
+++
+++// /* INT1 */
+++// #define SYS_GPD_MFP_PD11_INT1                             (0x01ul << GPD_MFP11)
+++// #define SYS_ALT_MFP_PD11_INT1                             NULL
+++// #define SYS_ALT_MFP1_PD11_INT1                            NULL
+++
+++// #define SYS_GPD_MFP_PD11_Msk                              (0x01ul << GPD_MFP11)
+++// #define SYS_ALT_MFP_PD11_Msk                              NULL
+++// #define SYS_ALT_MFP1_PD11_Msk                             NULL
+++
+++// /**
+++//  * GPIO Port F Alternative Pin Modes
+++//  *
+++//  */
+++
+++// /* Pin 0 */
+++// /* GPIO */
+++// #define SYS_GPF_MFP_PF0_GPIO                              0x0ul
+++// #define SYS_ALT_MFP_PF0_GPIO                              NULL
+++// #define SYS_ALT_MFP1_PF0_GPIO                             NULL
+++
+++// /* XT1 OUT */
+++// #define SYS_GPF_MFP_PF0_XT1_OUT                           SYS_GPF_MFP_GPF_MFP0_Msk
+++// #define SYS_ALT_MFP_PF0_XT1_OUT                           NULL
+++// #define SYS_ALT_MFP1_PF0_XT1_OUT                          NULL
+++
+++// #define SYS_GPF_MFP_PF0_Msk                               SYS_GPF_MFP_GPF_MFP0_Msk
+++// #define SYS_ALT_MFP_PF0_Msk                               NULL
+++// #define SYS_ALT_MFP1_PF0_Msk                              NULL
+++
+++// /* Pin 1 */
+++// /* GPIO */
+++// #define SYS_GPF_MFP_PF1_GPIO                              0x0ul
+++// #define SYS_ALT_MFP_PF1_GPIO                              NULL
+++// #define SYS_ALT_MFP1_PF1_GPIO                             NULL
+++
+++// /* XT1 IN */
+++// #define SYS_GPF_MFP_PF1_XT1_IN                            SYS_GPF_MFP_GPF_MFP1_Msk
+++// #define SYS_ALT_MFP_PF1_XT1_IN                            NULL
+++// #define SYS_ALT_MFP1_PF1_XT1_IN                           NULL
+++
+++// #define SYS_GPF_MFP_PF1_Msk                               SYS_GPF_MFP_GPF_MFP1_Msk
+++// #define SYS_ALT_MFP_PF1_Msk                               NULL
+++// #define SYS_ALT_MFP1_PF1_Msk                              NULL
+++
+++// /* Pin 2 */
+++// /* GPIO */
+++// #define SYS_GPF_MFP_PF2_GPIO                              0x0ul
+++// #define SYS_ALT_MFP_PF2_GPIO                              NULL
+++// #define SYS_ALT_MFP1_PF2_GPIO                             0x0ul
+++
+++// /* PS2 DAT */
+++// #define SYS_GPF_MFP_PF2_PS2_DAT                           SYS_GPF_MFP_GPF_MFP2_Msk
+++// #define SYS_ALT_MFP_PF2_PS2_DAT                           NULL
+++// #define SYS_ALT_MFP1_PF2_PS2_DAT                          0x0ul
+++
+++// /* I2C0 SDA */
+++// #define SYS_GPF_MFP_PF2_I2C0_SDA                          SYS_GPF_MFP_GPF_MFP2_Msk
+++// #define SYS_ALT_MFP_PF2_I2C0_SDA                          NULL
+++// #define SYS_ALT_MFP1_PF2_I2C0_SDA                         (0x02ul << SYS_ALT_MFP1_PF2_MFP1_Pos)
+++
+++// /* ADC6 */
+++// #define SYS_GPF_MFP_PF2_ADC6                              SYS_GPF_MFP_GPF_MFP2_Msk
+++// #define SYS_ALT_MFP_PF2_ADC6                              NULL
+++// #define SYS_ALT_MFP1_PF2_ADC6                             (0x03ul << SYS_ALT_MFP1_PF2_MFP1_Pos)
+++
+++// #define SYS_GPF_MFP_PF2_Msk                               SYS_GPF_MFP_GPF_MFP2_Msk
+++// #define SYS_ALT_MFP_PF2_Msk                               NULL
+++// #define SYS_ALT_MFP1_PF2_Msk                              (0x03ul << SYS_ALT_MFP1_PF2_MFP1_Pos)
+++
+++// /* Pin 3 */
+++// /* GPIO */
+++// #define SYS_GPF_MFP_PF3_GPIO                              0x0ul
+++// #define SYS_ALT_MFP_PF3_GPIO                              NULL
+++// #define SYS_ALT_MFP1_PF3_GPIO                             0x0ul
+++
+++// /* PS2 CLK */
+++// #define SYS_GPF_MFP_PF3_PS2_CLK                           SYS_GPF_MFP_GPF_MFP3_Msk
+++// #define SYS_ALT_MFP_PF3_PS2_CLK                           NULL
+++// #define SYS_ALT_MFP1_PF3_PS2_CLK                          0x0ul
+++
+++// /* I2C0 SCL */
+++// #define SYS_GPF_MFP_PF3_I2C0_SCL                          SYS_GPF_MFP_GPF_MFP3_Msk
+++// #define SYS_ALT_MFP_PF3_I2C0_SCL                          NULL
+++// #define SYS_ALT_MFP1_PF3_I2C0_SCL                         (0x2UL << SYS_ALT_MFP1_PF3_MFP1_Pos)
+++
+++// /* ADC7 */
+++// #define SYS_GPF_MFP_PF3_ADC7                              (SYS_GPF_MFP_GPF_MFP3_Msk
+++// #define SYS_ALT_MFP_PF3_ADC7                              NULL
+++// #define SYS_ALT_MFP1_PF3_ADC7                             (0x03ul << SYS_ALT_MFP1_PF3_MFP1_Pos)
+++
+++// #define SYS_GPF_MFP_PF3_Msk                               SYS_GPF_MFP_GPF_MFP3_Msk
+++// #define SYS_ALT_MFP_PF3_Msk                               NULL
+++// #define SYS_ALT_MFP1_PF3_Msk                              (0x03ul << SYS_ALT_MFP1_PF3_MFP1_Pos)
++ 
++ /*
++ #undef PAL_MODE_RESET
++@@ -1037,65 +1037,65 @@
++ #define GPIO_PINSPERPORT_MAX        16
++ 
++ /* GPIO PORT/PIN TO BASE ADDRESS MACRO */
++-#define GPIO_PIN_DATA(port, pin)    \
++-  (*((volatile uint32_t *)((GPIO_PIN_DATA_BASE + (0x40 * (port))) + ((pin) << 2))))
+++/* #define GPIO_PIN_DATA(port, pin)    \
+++  (*((volatile uint32_t *)((GPIO_PIN_DATA_BASE + (0x40 * (port))) + ((pin) << 2)))) */
++ 
++ /* GPIO Port A (10~15) */
++-#define PA10                        GPIO_PIN_DATA(0, 10)
++-#define PA11                        GPIO_PIN_DATA(0, 11)
++-#define PA12                        GPIO_PIN_DATA(0, 12)
++-#define PA13                        GPIO_PIN_DATA(0, 13)
++-#define PA14                        GPIO_PIN_DATA(0, 14)
++-#define PA15                        GPIO_PIN_DATA(0, 15)
+++// #define PA10                        GPIO_PIN_DATA(0, 10)
+++// #define PA11                        GPIO_PIN_DATA(0, 11)
+++// #define PA12                        GPIO_PIN_DATA(0, 12)
+++// #define PA13                        GPIO_PIN_DATA(0, 13)
+++// #define PA14                        GPIO_PIN_DATA(0, 14)
+++// #define PA15                        GPIO_PIN_DATA(0, 15)
++ 
++ /* GPIO Port B (0~10 & 12~15) */
++-#define PB0                         GPIO_PIN_DATA(1, 0)
++-#define PB1                         GPIO_PIN_DATA(1, 1)
++-#define PB2                         GPIO_PIN_DATA(1, 2)
++-#define PB3                         GPIO_PIN_DATA(1, 3)
++-#define PB4                         GPIO_PIN_DATA(1, 4)
++-#define PB5                         GPIO_PIN_DATA(1, 5)
++-#define PB6                         GPIO_PIN_DATA(1, 6)
++-#define PB7                         GPIO_PIN_DATA(1, 7)
++-#define PB8                         GPIO_PIN_DATA(1, 8)
++-#define PB9                         GPIO_PIN_DATA(1, 9)
++-#define PB10                        GPIO_PIN_DATA(1, 10)
++-#define PB12                        GPIO_PIN_DATA(1, 12)
++-#define PB13                        GPIO_PIN_DATA(1, 13)
++-#define PB14                        GPIO_PIN_DATA(1, 14)
++-#define PB15                        GPIO_PIN_DATA(1, 15)
+++// #define PB0                         GPIO_PIN_DATA(1, 0)
+++// #define PB1                         GPIO_PIN_DATA(1, 1)
+++// #define PB2                         GPIO_PIN_DATA(1, 2)
+++// #define PB3                         GPIO_PIN_DATA(1, 3)
+++// #define PB4                         GPIO_PIN_DATA(1, 4)
+++// #define PB5                         GPIO_PIN_DATA(1, 5)
+++// #define PB6                         GPIO_PIN_DATA(1, 6)
+++// #define PB7                         GPIO_PIN_DATA(1, 7)
+++// #define PB8                         GPIO_PIN_DATA(1, 8)
+++// #define PB9                         GPIO_PIN_DATA(1, 9)
+++// #define PB10                        GPIO_PIN_DATA(1, 10)
+++// #define PB12                        GPIO_PIN_DATA(1, 12)
+++// #define PB13                        GPIO_PIN_DATA(1, 13)
+++// #define PB14                        GPIO_PIN_DATA(1, 14)
+++// #define PB15                        GPIO_PIN_DATA(1, 15)
++ 
++ /* GPIO Port C (0~5 & 8~13) */
++-#define PC0                         GPIO_PIN_DATA(2, 0)
++-#define PC1                         GPIO_PIN_DATA(2, 1)
++-#define PC2                         GPIO_PIN_DATA(2, 2)
++-#define PC3                         GPIO_PIN_DATA(2, 3)
++-#define PC4                         GPIO_PIN_DATA(2, 4)
++-#define PC5                         GPIO_PIN_DATA(2, 5)
++-#define PC8                         GPIO_PIN_DATA(2, 8)
++-#define PC9                         GPIO_PIN_DATA(2, 9)
++-#define PC10                        GPIO_PIN_DATA(2, 10)
++-#define PC11                        GPIO_PIN_DATA(2, 11)
++-#define PC12                        GPIO_PIN_DATA(2, 12)
++-#define PC13                        GPIO_PIN_DATA(2, 13)
+++// #define PC0                         GPIO_PIN_DATA(2, 0)
+++// #define PC1                         GPIO_PIN_DATA(2, 1)
+++// #define PC2                         GPIO_PIN_DATA(2, 2)
+++// #define PC3                         GPIO_PIN_DATA(2, 3)
+++// #define PC4                         GPIO_PIN_DATA(2, 4)
+++// #define PC5                         GPIO_PIN_DATA(2, 5)
+++// #define PC8                         GPIO_PIN_DATA(2, 8)
+++// #define PC9                         GPIO_PIN_DATA(2, 9)
+++// #define PC10                        GPIO_PIN_DATA(2, 10)
+++// #define PC11                        GPIO_PIN_DATA(2, 11)
+++// #define PC12                        GPIO_PIN_DATA(2, 12)
+++// #define PC13                        GPIO_PIN_DATA(2, 13)
++ 
++ /* GPIO Port D (0~5 & 8~11) */
++-#define PD0                         GPIO_PIN_DATA(3, 0)
++-#define PD1                         GPIO_PIN_DATA(3, 1)
++-#define PD2                         GPIO_PIN_DATA(3, 2)
++-#define PD3                         GPIO_PIN_DATA(3, 3)
++-#define PD4                         GPIO_PIN_DATA(3, 4)
++-#define PD5                         GPIO_PIN_DATA(3, 5)
++-#define PD8                         GPIO_PIN_DATA(3, 8)
++-#define PD9                         GPIO_PIN_DATA(3, 9)
++-#define PD10                        GPIO_PIN_DATA(3, 10)
++-#define PD11                        GPIO_PIN_DATA(3, 11)
+++// #define PD0                         GPIO_PIN_DATA(3, 0)
+++// #define PD1                         GPIO_PIN_DATA(3, 1)
+++// #define PD2                         GPIO_PIN_DATA(3, 2)
+++// #define PD3                         GPIO_PIN_DATA(3, 3)
+++// #define PD4                         GPIO_PIN_DATA(3, 4)
+++// #define PD5                         GPIO_PIN_DATA(3, 5)
+++// #define PD8                         GPIO_PIN_DATA(3, 8)
+++// #define PD9                         GPIO_PIN_DATA(3, 9)
+++// #define PD10                        GPIO_PIN_DATA(3, 10)
+++// #define PD11                        GPIO_PIN_DATA(3, 11)
++ 
++ /* GPIO Port D (0~3) */
++-#define PF0                         GPIO_PIN_DATA(5, 0)
++-#define PF1                         GPIO_PIN_DATA(5, 1)
++-#define PF2                         GPIO_PIN_DATA(5, 2)
++-#define PF3                         GPIO_PIN_DATA(5, 3)
+++// #define PF0                         GPIO_PIN_DATA(5, 0)
+++// #define PF1                         GPIO_PIN_DATA(5, 1)
+++// #define PF2                         GPIO_PIN_DATA(5, 2)
+++// #define PF3                         GPIO_PIN_DATA(5, 3)
++ 
++ /**
++  * @name    Port Abstraction Layer related definitions
++diff --git a/os/hal/ports/NUMICRO/LLD/TIMv1/hal_st_lld.h b/os/hal/ports/NUMICRO/LLD/TIMv1/hal_st_lld.h
++index f9191fb..de98f7f 100644
++--- a/os/hal/ports/NUMICRO/LLD/TIMv1/hal_st_lld.h
+++++ b/os/hal/ports/NUMICRO/LLD/TIMv1/hal_st_lld.h
++@@ -38,10 +38,10 @@
++ /* Driver constants.                                                         */
++ /*===========================================================================*/
++ 
++-#define CLK_CLKSEL0_STCLK_S_HXT              (0x0ul<<CLK_CLKSEL0_STCLK_S_Pos)         /*!< Set HXT as STCLK clock source */
++-#define CLK_CLKSEL0_STCLK_S_HXT_DIV2         (0x2ul<<CLK_CLKSEL0_STCLK_S_Pos)         /*!< Set HXT/2 as STCLK clock source */
++-#define CLK_CLKSEL0_STCLK_S_HCLK_DIV2        (0x3ul<<CLK_CLKSEL0_STCLK_S_Pos)         /*!< Set HCLK/2 as STCLK clock source */
++-#define CLK_CLKSEL0_STCLK_S_HIRC_DIV2        (0x7ul<<CLK_CLKSEL0_STCLK_S_Pos)         /*!< Set HIRC/2 as STCLK clock source */
+++// #define CLK_CLKSEL0_STCLK_S_HXT              (0x0ul<<CLK_CLKSEL0_STCLK_S_Pos)         /*!< Set HXT as STCLK clock source */
+++// #define CLK_CLKSEL0_STCLK_S_HXT_DIV2         (0x2ul<<CLK_CLKSEL0_STCLK_S_Pos)         /*!< Set HXT/2 as STCLK clock source */
+++// #define CLK_CLKSEL0_STCLK_S_HCLK_DIV2        (0x3ul<<CLK_CLKSEL0_STCLK_S_Pos)         /*!< Set HCLK/2 as STCLK clock source */
+++// #define CLK_CLKSEL0_STCLK_S_HIRC_DIV2        (0x7ul<<CLK_CLKSEL0_STCLK_S_Pos)         /*!< Set HIRC/2 as STCLK clock source */
++ 
++ #define TIMER_MODE_PERIODIC                  (0x01ul << TIMER_TCSR_MODE_Pos)
++ #define TIMER_MODE_CONTINUOUS                (0x03ul << TIMER_TCSR_MODE_Pos)
++diff --git a/os/hal/ports/NUMICRO/NUC123/hal_lld.c b/os/hal/ports/NUMICRO/NUC123/hal_lld.c
++index b7c3425..13f3dec 100644
++--- a/os/hal/ports/NUMICRO/NUC123/hal_lld.c
+++++ b/os/hal/ports/NUMICRO/NUC123/hal_lld.c
++@@ -34,7 +34,7 @@
++ #define FREQ_100MHZ 100000000
++ #define FREQ_200MHZ 200000000
++ 
++-#define CLK_CLKDIV_HCLK(x) (((x)-1) << CLK_CLKDIV_HCLK_N_Pos)
+++// #define CLK_CLKDIV_HCLK(x) (((x)-1) << CLK_CLKDIV_HCLK_N_Pos)
++ 
++ /*===========================================================================*/
++ /* Driver exported variables.                                                */
+diff --git a/drivers/led/mbi5043.c b/drivers/led/mbi5043.c
+new file mode 100644
+index 0000000000..6524e57153
+--- /dev/null
++++ b/drivers/led/mbi5043.c
+@@ -0,0 +1,589 @@
++/* Copyright 2019 /u/KeepItUnder
++ * Copyright 2023 Wakeful Cloud
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation, either version 2 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
++ * 
++ * ---------------------------------------------------------------------
++ * 
++ * Macroblock MBI5043 16-channel constant current LED driver
++ *
++ * The chip has a data input interface, a set of synchronisation clocks
++ * and 16 PWM output pins capapble of 16-bit PWM.
++ *
++ * Data interface: SDI, SDO, DCLK
++ * General clock: GCLK
++ * Data Latch: LE
++ *
++ * Commands available (differentiated by numbers of rising edge DCLKS)
++ * Command is actioned on subsequent falling edge of LE:
++ *
++ *
++ * Data Latch
++ * ----------
++ *
++ * Take LE high. Keep high for maximum of 1 DCLK rising edges.
++ *
++ * Allow LE to fall - falling edge causes serial data to be
++ * transferred to the buffers only.
++ *
++ *
++ * Global Latch
++ * ------------
++ *
++ * Take LE high. Keep high for 2 or 3 DCLK rising edges.
++ *
++ * Allow LE to fall - falling edge causes buffer data to be
++ * transferred to the comparators.
++ *
++ *
++ * Read Configuration
++ * ------------------
++ *
++ * Take LE high. Keep high for 4 or 5 DCLK rising edges.
++ *
++ * Allow LE to fall - falling edge moves config data to the
++ * shift registers.
++ *
++ *
++ * Write Configuration
++ * -------------------
++ *
++ * Take LE high. Keep high for 10 or 11 DCLK rising edges.
++ *
++ * Allow LE to fall - falling edge transfers serial data
++ * to the configuration register ONLY IF "Enable Writing
++ * Configuration" is sent prior (see below)
++ *
++ *
++ * Enable Writing Configuration
++ * ----------------------------
++ *
++ * Take LE high. Keep high for 14 or 15 DCLK rising edges.
++ *
++ * Allow LE to fall - falling edge enables configuration
++ * writing. This should be sent immediately prior to any
++ * attempt to write to configuration register.
++ *
++ *
++ * Configuration Register
++ * ----------------------
++ *
++ * 16 bits wide
++ *
++ * | MSB | Attribute |            Definition            |     Value     |                                               Function                                              |
++ * |-----|-----------|----------------------------------|---------------|-----------------------------------------------------------------------------------------------------|
++ * | F~E | R/W       | GCLK shift                       | 00            | 00: shift 0 GCLK, 01: shift 2 GCLK, 10: shift 4 GCLK, 11: shift 8 GCLK                              |
++ * | D   | R         | Reserved                         | 0             | Please keep 0                                                                                       |
++ * | C~B | R/W       | Select pre-charge mode           | 00            | 00: mode 1, 01: mode 2, 10: mode 3, 11: mode 4                                                      |
++ * | A   | R/W       | Color shift compensation [A]     | 0             | [A, B] = [0, 0]: disable, [A, B] = [0, 1]: mode 1, [A, B] = [1, 0]: mode 2, [A, B] = [1, 1]: mode 3 |
++ * | 9~4 | R/W       | Current gain adjustment          | 000000~111111 | 6'b101011 (Default, 100%), 6'b000000 (12.5%) ~ 6'b111111 (200%)                                     |
++ * | 3   | R/W       | GCLK rising/falling edge trigger | 0             | 0: disable, 1: enable                                                                               |
++ * | 2   | R/W       | Color shift compensation [B]     | 0             | [A, B] = [0, 0]: disable, [A, B] = [0, 1]: mode 1, [A, B] = [1, 0]: mode 2, [A, B] = [1, 1]: mode 3 |
++ * | 1   | R         | Reserved                         | 0             | Please keep 0                                                                                       |
++ * | 0   | R/W       | Disable/enable                   | 0             | 0: disable, 1: enable                                                                               |
++ * | LSB | Attribute |            Definition            |     Value     |                                               Function                                              |
++ */
++
++#include "mbi5043.h"
++#include "progmem.h"
++#include "led_tables.h"
++#include "rgb_matrix.h"
++#include "hal.h"
++
++#include <string.h>
++
++#ifndef MBI5043_GCLK_SRC
++    #define MBI5043_GCLK_SRC PWM0
++#endif
++#ifndef MBI5043_DCLK
++    #define MBI5043_DCLK PD4
++#endif
++#ifndef MBI5043_LE
++    #define MBI5043_LE PD3
++#endif
++
++// /**
++//  * @brief PWM configuration
++//  */
++// static PWMConfig pwmcfg = {
++//     .frequency = NUC123_HCLK, // Hardware clock
++//     .period    = NUC123_HCLK, // 1 S period
++//     .callback  = NULL,
++//     .channels  = {
++//         {
++//             .mode = PWM_OUTPUT_ACTIVE_HIGH,
++//             .callback = NULL,
++//             .pinmask = SYS_GPA_MFP_PA12_PWM0
++//         },
++//         {
++//             .mode = PWM_OUTPUT_DISABLED,
++//             .callback = NULL
++//         },
++//         {
++//             .mode = PWM_OUTPUT_DISABLED,
++//             .callback = NULL
++//         },
++//         {
++//             .mode = PWM_OUTPUT_DISABLED,
++//             .callback = NULL
++//         }
++//     },
++// };
++
++/** 
++ * The PWM buffers the full rows of 16 PWM registers in each MBI5043 driver
++ * The buffers are arranged in serial format
++ * (MSB_R, MSB_G, MSB_B...LSB_R, LSB_G, LSB_B)
++ * as needed by the SDO pins on the MCU (R is B14; G is B13; B is B12)
++ *
++ * g_pwm_buffer has the DCLK-able output for an "R" row, a "G" row, and a "B" row of PWM
++ */
++uint16_t g_pwm_buffer[MBI5043_ROW_COUNT][16*16];
++
++bool g_pwm_buffer_update_required = false;
++uint8_t g_pwm_buffer_row = 0;
++
++void MBI5043_init(void) {
++    /* Initialise all PWM arrays to zero.
++     * Perform one group transfer to turn LEDs off
++     *
++     * If there's a DMA requirement, set up DMA subsystems
++     */
++    for (int i = 0; i < MBI5043_ROW_COUNT; i++) {
++        for (int j = 0; j < 256; j++) {
++            g_pwm_buffer[i][j] = 0;
++        }
++    }
++
++    //Enable PWM group
++    // pwmStart(&PWMD1, &pwmcfg);
++
++    //Configure channels
++    // pwmEnableChannel(&PWMD1, 0, PWM_PERCENTAGE_TO_WIDTH(&PWMD1, 5000)); // 50% duty cycle
++    // pwmEnableChannel(&PWMD1, 1, PWM_PERCENTAGE_TO_WIDTH(&PWMD1, 5000)); // 50% duty cycle
++
++    #if MBI5043_GCLK_SRC == PWM0
++        /* Setup PWM0 control registers for 2MHz GCLK
++         * and also 50 percentage PWM duty (makes a nice clock)
++         *
++         * Set PWM1 to be used as a 2kHz timer (interrupt but no output pin)
++         * which is used for row refresh/enable.
++         */
++
++        /* Enable PWM module clock */
++        CLK_EnableModuleClock(PWM01_MODULE);
++        // clks_lld_enable_module_clock(PWM01_MODULE);
++        // clks_lld_enable_module_clock(PWM01_ModuleNum);
++
++        /* Select PWM module clock source */
++        CLK_SetModuleClock(PWM01_MODULE, CLK_CLKSEL1_PWM01_S_HCLK | CLK_CLKSEL2_PWM01_EXT_HCLK, 0);
++        // clks_lld_set_module_clock(PWM01_MODULE, CLK_CLKSEL1_PWM01_S_HCLK | CLK_CLKSEL2_PWM01_EXT_HCLK, 0);
++        // clks_lld_set_module_clock(PWM01_ModuleNum, CLK_CLKSEL1_PWM01_S_HCLK, 0);
++
++        /* Combined method to configure PWM0 */
++        PWM_ConfigOutputChannel(PWMA, PWM_CH0, MBI5043_GCLK_SPD, 50);
++        // pwm_lld_config_output_channel(PWMA, PWM_CH0, MBI5043_GCLK_SPD, 50);
++
++        /* Enable PWM Output path for PWMA channel 0 */
++        PWM_EnableOutput(PWMA, 0x1);
++        // (PWMA)->POE |= PWM_CH1;
++
++        /* Set GPIO PA.12/PWM0 to be PWM0 */
++        SYS->GPA_MFP |= SYS_GPA_MFP_PA12_PWM0;
++
++        /* PWM1 Config */
++        /* Combined method to configure PWM1 */
++        PWM_ConfigOutputChannel(PWMA, PWM_CH1, MBI5043_REFRESH_SPD, 50);
++        // pwm_lld_config_output_channel(PWMA, PWM_CH1, MBI5043_REFRESH_SPD, 50);
++
++        /* Set interrupt handler */
++        nvicEnableVector(PWMA_IRQn, 3);
++
++        /* Need an interrupt for PWM1 */
++        (PWMA)->PIER = (PWMA)->PIER & ~(PWM_PIER_INT01TYPE_Msk | PWM_PIER_PWMIE1_Msk);
++        // pwm_lld_enable_period_int(PWMA, PWM_CH1, PWM_PERIOD_INT_UNDERFLOW);
++
++        /* Start PWM0 and PWM1 */
++        PWM_Start(PWMA, (0x1u << PWM_CH0 | 0x1u << PWM_CH1));
++        // pwm_lld_start(PWMA, (0x1u << PWM_CH0 | 0x1u << PWM_CH1));
++
++    #elif
++    #endif
++
++    MBI5043_disable_rows();
++
++    MBI5043_set_current_gain(0b000011u);
++}
++
++/**
++ * @brief Set LED driver current gain
++ * @detail The MBI5043 has a 6-bit current gain value (000000b ~ 111111b)
++ * used to adjust the global brightness of the LEDs attached to the PWM outputs
++ *
++ * Default value is 101011b
++ *
++ * Use MBI5043_CURRENT_GAIN to pass from keyboard config
++ */
++void MBI5043_set_current_gain(uint8_t gain) {
++    /** MB data transfer requires:
++     *      Tell chip config register change is coming (Enable Write Configutarion)
++     *      Pass config register data (Write Configuration Register)
++     */
++    uint16_t regConfig = 0b00111111u & gain;
++
++    regConfig <<= 4;
++    regConfig |= MBI5043_CFGREG_DEFAULT;
++
++    MBI5043_write_config_register(regConfig);
++}
++
++/**
++ * @brief   Write configuration register ONLY DURING INIT
++ * @detail  Set the contents of the configuration register (see top for bitfields)
++ *          Each register write needs 2 * 16 bit transfers (1 x setup and 1 x data)
++ *
++ * For the Ducky One 2 mini there are 3 drivers, so output all three configs at once
++ */
++void MBI5043_write_config_register(uint16_t regValue) {
++    uint32_t b_mask;
++    uint16_t tmp_r, tmp_g, tmp_b;
++
++    /* Set Mask for GPIOB */
++    b_mask = PB->DMASK;
++    PB->DMASK = ~(0x1u << 14 | 0x1u << 13 | 0x1u << 12);
++
++    /* LE Low & DCLK Low */
++    MBI5043_LE = PAL_LOW;
++    MBI5043_DCLK = PAL_LOW;
++
++    /* Do one DCLK cycle */
++    MBI5043_DCLK = PAL_HIGH;
++    MBI5043_DCLK = PAL_LOW;
++
++    /* Set LE High */
++    MBI5043_LE = PAL_HIGH;
++
++    /* Loop 15 - Enable Write Configuration */
++    for (int i = 0; i < 15; i++) {
++        /* Cycle DCLK */
++        MBI5043_DCLK = PAL_HIGH;
++        MBI5043_DCLK = PAL_LOW;
++    }
++
++    /* Reset LE Low */
++    MBI5043_LE = PAL_LOW;
++
++    /* Loop 16 - Transfer actual command data to all 3 LED drivers */
++    for (int i = 0; i < 16; i++) {
++
++        tmp_r = tmp_g = tmp_b = regValue;
++        /* Set data bit */
++        uint16_t bits = ((0x1u & (tmp_r >> 15)) << 14) | ((0x1u & (tmp_g >> 15)) << 13) | ((0x1u & (tmp_b >> 15)) << 12);
++        PB->DOUT = bits;
++
++        /* Cycle DCLK */
++        MBI5043_DCLK = PAL_HIGH;
++        MBI5043_DCLK = PAL_LOW;
++
++        if (i == 5) {
++            MBI5043_LE = PAL_HIGH;
++        }
++
++        /* Next bit to sample */
++        regValue <<= 1;
++    }
++
++    /* Put GPIOB DMASK back */
++    PB->DMASK = b_mask;
++
++    /* Reset LE Low */
++    MBI5043_LE = PAL_LOW;
++}
++
++void MBI5043_set_color(int index, uint8_t red, uint8_t green, uint8_t blue) {
++    /*
++     * @brief Pick a colour! Any colour!
++     */
++    //led_config_t led;
++    mbi_led led_pos;
++
++    if (index >= 0 && index < RGB_MATRIX_LED_COUNT) {
++        // Convert index into row/column
++        led_pos = g_mbi_leds[index];
++
++        // MBI5043_planar_recode(led.matrix_co.row, 15 - (led.matrix_co.col), red, green, blue);
++        if (index == 27 && host_keyboard_led_state().caps_lock) {
++            MBI5043_planar_recode(led_pos.row, led_pos.col, 0xff, 0xff, 0xff);
++        } else {
++            MBI5043_planar_recode(led_pos.row, led_pos.col, red, green, blue);
++        }
++
++        g_pwm_buffer_update_required = true;
++    }
++}
++
++void MBI5043_set_color_all(uint8_t red, uint8_t green, uint8_t blue) {
++    /*
++     * brief Set every led to the provided colour
++     */
++
++    for (int i = 0; i < MBI5043_ROW_COUNT; i++) {
++        for (int j = 0; j < 16; j++) {
++            if (i == 2) {
++                if (j == 0) {
++                    if (host_keyboard_led_state().caps_lock) {
++                        MBI5043_planar_recode(i, j, 0xff, 0xff, 0xff);
++                    }
++                }
++            } else {
++                MBI5043_planar_recode(i, j, red, green, blue);
++            }
++        }
++    }
++
++    g_pwm_buffer_update_required = true;
++}
++
++void MBI5043_update_pwm_buffers(void) {
++    /**
++     * Pass current PWM row to MBI5043 shift registers
++     *
++     * LE low
++     * Outer Loop 16 (one per register transfer - high to low):
++     *      Inner Loop 16 (one per PWM bit):
++     *          R_SDIN, G_SDIN & B_SDIN write
++     *          DCLK High
++     *          DCLK Low
++     *          For final loop, set LE High
++     *
++     * Send Global Latch (16 DCLKs with LE high for last 3)
++     *
++     * Disable current row
++     *
++     * Reset PWM count:
++     * Loop 3:
++     *      DCLK High
++     *      DCLK Low
++     * LE High
++     * Loop 13:
++     *      DCLK High
++     *      DCLK Low
++     * LE Low
++     *
++     * Select new row (row meant for above data)
++     */
++
++    uint32_t b_mask;
++
++    /* Set Mask for GPIOB */
++    b_mask = PB->DMASK;
++    PB->DMASK = ~(0x1u << 14 | 0x1u << 13 | 0x1u << 12);
++
++    // LE Low & DCLK Low
++    MBI5043_LE = PAL_LOW;
++    MBI5043_DCLK = PAL_LOW;
++
++    for (int i = 0; i < 16; i++) {
++        /* Inner Loop 16 */
++        for (int j = 0; j < 16; j++) {
++
++            /* R_SDIN/G_SDIN/B_SDIN write */
++            PB->DOUT = g_pwm_buffer[g_pwm_buffer_row][16*(15 - i) + j];
++
++            // If j is 15 set LE High
++            if (j == 15) {
++                MBI5043_LE = PAL_HIGH;
++            }
++
++            /* Cycle DCLK */
++            MBI5043_DCLK = PAL_HIGH;
++            MBI5043_DCLK = PAL_LOW;
++        } // Inner Loop 16
++
++        // LE Low
++        MBI5043_LE = PAL_LOW;
++    }
++
++    /* Send Global Latch */
++    for (int i = 0; i < 16; i++) {
++        /* Cycle DCLK */
++        MBI5043_DCLK = PAL_HIGH;
++        MBI5043_DCLK = PAL_LOW;
++
++        //  if i is 13 set LE high
++        if (i == 13) {
++            MBI5043_LE = PAL_HIGH;
++        }
++    }
++
++    // Reset LE Low
++    MBI5043_LE = PAL_LOW;
++
++    // Reset Masks
++    PB->DMASK = b_mask;
++
++    // Disable current row
++    MBI5043_disable_rows();
++
++    // Reset PWM count
++    // 3 DCLK cycles
++    for (int i = 0; i < 3; i++) {
++        MBI5043_DCLK = PAL_HIGH;
++        MBI5043_DCLK = PAL_LOW;
++    }
++
++    // Set LE High
++    MBI5043_LE = PAL_HIGH;
++
++    // Loop 13 to generate PWM count reset
++    for (int i = 0; i < 13; i++) {
++        MBI5043_DCLK = PAL_HIGH;
++        MBI5043_DCLK = PAL_LOW;
++    }
++
++    // Set LE Low
++    MBI5043_LE = PAL_LOW;
++
++    // Set new row
++    MBI5043_enable_row(g_pwm_buffer_row);
++
++    // increment row count + check
++    g_pwm_buffer_row++;
++    if (g_pwm_buffer_row >= MBI5043_ROW_COUNT) {
++        g_pwm_buffer_row = 0;
++    }
++}
++
++/**
++ * @brief Write is a zero-output routine to handle the FLUSH from the RGB LED driver calls
++ * @details Since the RGB data is recoded every time a colour is changed (by the relevant
++ * single or "all" set_color routines), there is no point at which a mass flush of RGB
++ * information is needed. The MBI5043 needs to be fed 16 sets of R, G, or B information
++ * for each row on a totally different schedule from the animations that affect the colours.
++ */
++void MBI5043_write_pwm_buffers(void) {
++
++}
++
++/**
++ * @brief Bitwise reorder of RGB information.
++ * @details Recode the 8-bit standard RGB to 16-bit separated values and
++ * turn the 16-bit "chunky" values into 16 sequential bitwise "planes"
++ */
++void MBI5043_planar_recode(int row, int column, uint8_t red, uint8_t green, uint8_t blue) {
++    uint16_t cur_r = pgm_read_word(&CIE1931_16_CURVE[red]);
++    uint16_t cur_g = pgm_read_word(&CIE1931_16_CURVE[green]);
++    uint16_t cur_b = pgm_read_word(&CIE1931_16_CURVE[blue]);
++
++    //int row, column;
++
++    for (int i = 0; i < 16; i ++) {
++        uint16_t tmp_r = cur_r;
++        uint16_t tmp_g = cur_g;
++        uint16_t tmp_b = cur_b;
++
++        //g_pwm_buffer[row][0][i * column] = ;
++        g_pwm_buffer[row][i + (column * 16)] = ((0x1u & (tmp_r >> 15)) << 14) | ((0x1u & (tmp_g >> 15)) << 13) | ((0x1u & (tmp_b >> 15)) << 12);
++        cur_r <<= 1;
++        cur_g <<= 1;
++        cur_b <<= 1;
++    }
++}
++
++/**
++ * @brief Disable all LED Rows
++ */
++void MBI5043_disable_rows(void) {
++
++    // Quick and dirty hardcoded row clear
++    // 5 rows total
++    // TODO: Create enum that can be configured for individual MCUs
++
++    // Row 0
++    PC4 = PAL_LOW;
++
++    // Row 1
++    PC5 = PAL_LOW;
++
++    // Row 2
++    PB3 = PAL_LOW;
++
++    // Row 3
++    PB2 = PAL_LOW;
++
++    // Row 4
++    PD9 = PAL_LOW;
++}
++
++/**
++ * @brief Disable specific LED row
++ */
++void MBI5043_disable_row(int row) {
++    switch (row) {
++        case 0: // Row 0
++            PC4 = PAL_LOW;
++            break;
++        case 1: // Row 1
++            PC5 = PAL_LOW;
++            break;
++        case 2: // Row 2
++            PB3 = PAL_LOW;
++            break;
++        case 3: // Row 3
++            PB2 = PAL_LOW;
++            break;
++        case 4: // Row 4
++            PD9 = PAL_LOW;
++            break;
++    }
++}
++
++/**
++ * @brief Enable specific LED row
++ */
++void MBI5043_enable_row(int row) {
++    switch (row) {
++        case 0: // Row 0
++            PC4 = PAL_HIGH;
++            break;
++        case 1: // Row 1
++            PC5 = PAL_HIGH;
++            break;
++        case 2: // Row 2
++            PB3 = PAL_HIGH;
++            break;
++        case 3: // Row 3
++            PB2 = PAL_HIGH;
++            break;
++        case 4: // Row 4
++            PD9 = PAL_HIGH;
++            break;
++    }
++}
++
++OSAL_IRQ_HANDLER(NUC123_PWMA_HANDLER) {
++    OSAL_IRQ_PROLOGUE();
++
++    /* Check for PWM1 underflow IRQ */
++    if (PWM_GetPeriodIntFlag(PWMA, PWM_CH1) == 1) {
++        PWM_ClearPeriodIntFlag(PWMA, PWM_CH1);
++        MBI5043_update_pwm_buffers();
++    }
++    // if (pwm_lld_get_period_int(PWMA, PWM_CH1) == 1) {
++    //     pwm_lld_clear_period_int(PWMA, PWM_CH1);
++    //     MBI5043_update_pwm_buffers();
++    // }
++
++    OSAL_IRQ_EPILOGUE();
++}
+\ No newline at end of file
+diff --git a/drivers/led/mbi5043.h b/drivers/led/mbi5043.h
+new file mode 100644
+index 0000000000..fb2c63ccda
+--- /dev/null
++++ b/drivers/led/mbi5043.h
+@@ -0,0 +1,57 @@
++/* Copyright 2019 /u/KeepItUnder
++ * Copyright 2023 Wakeful Cloud
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation, either version 2 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
++ */
++
++#pragma once
++
++#include <stdint.h>
++#include <stdbool.h>
++
++typedef struct mbi_led {
++    uint8_t row;
++    uint8_t col;
++} __attribute__((packed)) mbi_led;
++
++extern const mbi_led g_mbi_leds[RGB_MATRIX_LED_COUNT];
++
++/* #define MBI5043_CFGREG_DEFAULT 0x002b0ul */
++#define MBI5043_CFGREG_DEFAULT 0b1000010000000000u
++
++#define MBI5043_GCLK_GPIO PA12
++#define MBI5043_GCLK_SRC PWM0
++#define MBI5043_GCLK_SPD 2000000
++#define MBI5043_DCLK_GPIO PD4
++#define MBI5043_LE PD3
++
++#define MBI5043_ROW_COUNT 5
++#define MBI5043_REFRESH_SPD 2000
++
++void MBI5043_init(void);
++
++void MBI5043_set_current_gain(uint8_t gain);
++void MBI5043_write_config_register(uint16_t regValue);
++
++void MBI5043_set_color(int index, uint8_t red, uint8_t green, uint8_t blue);
++void MBI5043_set_color_all(uint8_t red, uint8_t green, uint8_t blue);
++
++void MBI5043_update_pwm_buffers(void);
++void MBI5043_write_pwm_buffers(void);
++
++void MBI5043_planar_recode(int row, int column, uint8_t red, uint8_t green, uint8_t blue);
++
++void MBI5043_disable_rows(void);
++void MBI5043_disable_row(int row);
++void MBI5043_enable_row(int row);
+\ No newline at end of file
+diff --git a/keyboards/ducky/one2mini/1861st/1861st.h b/keyboards/ducky/one2mini/1861st/1861st.h
+index 23ca182062..4fd46a44d7 100644
+--- a/keyboards/ducky/one2mini/1861st/1861st.h
++++ b/keyboards/ducky/one2mini/1861st/1861st.h
+@@ -27,7 +27,7 @@
+  * The second converts the arguments into a two-dimensional array which
+  * represents the switch matrix.
+  */
+-#define LAYOUT_all( \
++#define LAYOUT_60_all( \
+     k00, k01, k02, k03, k04, k05, k06, k07, k08, k09, k0a, k0b, k0c, k0d, \
+     k10, k11, k12, k13, k14, k15, k16, k17, k18, k19, k1a, k1b, k1c, k1d, \
+     k20, k21, k22, k23, k24, k25, k26, k27, k28, k29, k2a, k2b, k2c, k2d, \
+diff --git a/keyboards/ducky/one2mini/1861st/info.json b/keyboards/ducky/one2mini/1861st/info.json
+index 364d803718..41977b901c 100644
+--- a/keyboards/ducky/one2mini/1861st/info.json
++++ b/keyboards/ducky/one2mini/1861st/info.json
+@@ -7,10 +7,12 @@
+         "device_version": "0.0.1"
+     },
+     "layout_aliases": {
++        "LAYOUT_all": "LAYOUT_60_all",
++        "LAYOUT_ansi": "LAYOUT_60_ansi",
+         "LAYOUT_iso": "LAYOUT_60_iso"
+     },
+     "layouts": {
+-        "LAYOUT_all": {
++        "LAYOUT_60_all": {
+             "layout": [
+                 { "x": 0, "y": 0, "w": 1, "label": "ESC" },
+                 { "x": 1, "y": 0, "w": 1, "label": "1" },
+diff --git a/keyboards/ducky/one2mini/1861st/readme.md b/keyboards/ducky/one2mini/1861st/readme.md
+index bf6b3974a3..1ae0c81df7 100644
+--- a/keyboards/ducky/one2mini/1861st/readme.md
++++ b/keyboards/ducky/one2mini/1861st/readme.md
+@@ -1,29 +1,38 @@
+-# one2mini
++# One 2 Mini (DKON1861ST)
+ 
+-![one2mini](http://www.duckychannel.com.tw/page-en/One_2_Mini_RGB/images/One2_Mini_01_02.jpg)
++![One 2 Mini](https://www.duckychannel.com.tw/upload/2019_05_112/20190511120502dgnhbl7NU1.png)
+ 
+-A 60% keyboard featuring per-key RGB LEDs.
++A 60% keyboard made by Ducky Channel.
+ 
+ * Keyboard Maintainer: [Reza Jelveh](https://github.com/fishman)
+-* Hardware Supported: Ducky One 2 Mini RGB / NUC123SD4AN0 / MBI5042GP
+-* Hardware Availability: [Ducky Channel](http://www.duckychannel.com.tw/page-en/One_2_Mini_RGB/)
++* Hardware Supported: Ducky One 2 Mini RGB (DKON1861ST) + NUC123SD4AN0 + MBI5042GP
++* Hardware Availability: [Ducky Channel](https://www.duckychannel.com.tw/en/Ducky-One2-Mini-RGB)
++    * RGB LEDs are currently disabled until the driver is merged.
+ 
+-Make example for this keyboard (after setting up your build environment):
++## Compiling the Firmware
+ 
+-    make ducky/one2mini:default
++```
++make ducky/one2mini:default
++```
+ 
+-See the [build environment setup](https://docs.qmk.fm/#/getting_started_build_tools) and the [make instructions](https://docs.qmk.fm/#/getting_started_make_guide) for more information. Brand new to QMK? Start with our [Complete Newbs Guide](https://docs.qmk.fm/#/newbs).
++## Accessing Bootloader Mode
+ 
+-RGB LEDs are currently disabled until the driver is merged.
++To enter the 1861ST bootloader to flash, boot the keyboard while holding D+L.
+ 
+-This firmware was tested on the duckyon2mini 1861ST version. To enter the 1861ST bootloader to flash you can boot the keyboard while holding D+L.
++## Flashing the Firmware:
+ 
+ There are then two ways to flash the keyboard:
+ 
+-    pip install --user nuvoton-isp
+-    nuvoisp -f ducky_one2mini_default.bin
++```
++pip install --user nuvoton-isp
++nuvoisp -f ducky_one2sf_ansi.bin
++```
+ 
+ Alternatively you can use elfmimi's [nu-isp-cli](https://lib.rs/crates/nu-isp-cli) which is more complete than nuvoisp and allows flashing .hex files as well.
+ 
+-    cargo install nu-isp-cli
+-    nu-isp-cli flash ducky_one2mini_default.bin
++```
++cargo install nu-isp-cli
++nu-isp-cli flash ducky_one2sf_ansi.bin
++```
++
++See the [build environment setup](https://docs.qmk.fm/#/getting_started_build_tools) and the [make instructions](https://docs.qmk.fm/#/getting_started_make_guide) for more information. Brand new to QMK? Start with our [Complete Newbs Guide](https://docs.qmk.fm/#/newbs).
+diff --git a/keyboards/ducky/one2mini/keymaps/ansi/keymap.c b/keyboards/ducky/one2mini/keymaps/ansi/keymap.c
+index 8ea4a1729f..4ead0dd439 100644
+--- a/keyboards/ducky/one2mini/keymaps/ansi/keymap.c
++++ b/keyboards/ducky/one2mini/keymaps/ansi/keymap.c
+@@ -53,4 +53,5 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
+     _______,          RGB_HUD, RGB_SAD, RGB_VAD, RGB_SPD, _______, _______, _______, _______, _______, _______,          _______,
+     _______, _______, _______,                            RGB_TOG,                            _______, _______, _______, _______
+   ),
++
+ };
+diff --git a/keyboards/ducky/one2mini/keymaps/default/keymap.c b/keyboards/ducky/one2mini/keymaps/default/keymap.c
+index 537c5a420e..0f3633b97c 100644
+--- a/keyboards/ducky/one2mini/keymaps/default/keymap.c
++++ b/keyboards/ducky/one2mini/keymaps/default/keymap.c
+@@ -27,7 +27,7 @@ enum Layer {
+ 
+ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
+ 
+-  [_QWERTY] = LAYOUT_all(
++  [_QWERTY] = LAYOUT_60_all(
+     //       2        3        4        5        6        7        8        9        10       11       12       13       14
+     QK_GESC, KC_1,    KC_2,    KC_3,    KC_4,    KC_5,    KC_6,    KC_7,    KC_8,    KC_9,    KC_0,    KC_MINS, KC_EQL,  KC_BSPC,
+     KC_TAB,  KC_Q,    KC_W,    KC_E,    KC_R,    KC_T,    KC_Y,    KC_U,    KC_I,    KC_O,    KC_P,    KC_LBRC, KC_RBRC, KC_BSLS,
+@@ -36,7 +36,7 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
+     KC_LCTL, KC_LGUI, KC_LALT,                            KC_SPC,                             KC_RALT, KC_RGUI, MO(_FN), KC_RCTL
+   ),
+ 
+-  [_FUNCTION] = LAYOUT_all(
++  [_FUNCTION] = LAYOUT_60_all(
+     //       2        3        4        5        6        7        8        9        10       11       12       13       14
+     KC_GRV,  KC_F1,   KC_F2,   KC_F3,   KC_F4,   KC_F5,   KC_F6,   KC_F7,   KC_F8,   KC_F9,   KC_F10,  KC_F11,  KC_F12,  KC_DEL,
+     _______, KC_BTN1, KC_MS_U, KC_BTN2, KC_WH_U, _______, KC_INS,  _______, KC_UP,   KC_PAUS, KC_PGUP, KC_HOME, KC_PSCR, _______,
+@@ -45,7 +45,7 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
+     _______, _______, MO(_CLR),                           KC_MPLY,                            _______, KC_APP,  _______, _______
+   ),
+ 
+-  [_COLOUR] = LAYOUT_all(
++  [_COLOUR] = LAYOUT_60_all(
+     //       2        3        4        5        6        7        8        9        10       11       12       13       14
+     _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______,
+     _______, _______, _______, _______, _______, RGB_MOD, _______, _______, _______, _______, _______, _______, _______, _______,
+@@ -53,4 +53,5 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
+     _______, _______, RGB_HUD, RGB_SAD, RGB_VAD, RGB_SPD, _______, _______, _______, _______, _______, _______,          _______,
+     _______, _______, _______,                            RGB_TOG,                            _______, _______, _______, _______
+   ),
++
+ };
+diff --git a/keyboards/ducky/one2mini/keymaps/iso/keymap.c b/keyboards/ducky/one2mini/keymaps/iso/keymap.c
+index 1c653d0fd5..7140942e50 100644
+--- a/keyboards/ducky/one2mini/keymaps/iso/keymap.c
++++ b/keyboards/ducky/one2mini/keymaps/iso/keymap.c
+@@ -53,4 +53,5 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
+     _______, _______, RGB_HUD, RGB_SAD, RGB_VAD, RGB_SPD, _______, _______, _______, _______, _______, _______,          _______,
+     _______, _______, _______,                            RGB_TOG,                            _______, _______, _______, _______
+   ),
++
+ };
+diff --git a/keyboards/ducky/one2mini/readme.md b/keyboards/ducky/one2mini/readme.md
+index d03cb5d7b2..52806e65bf 100644
+--- a/keyboards/ducky/one2mini/readme.md
++++ b/keyboards/ducky/one2mini/readme.md
+@@ -1,7 +1,10 @@
+-# one2mini
++# One 2 Mini
+ 
+-![one2mini](http://www.duckychannel.com.tw/page-en/One_2_Mini_RGB/images/One2_Mini_01_02.jpg)
++![One 2 Mini](https://www.duckychannel.com.tw/upload/2019_05_112/20190511120502dgnhbl7NU1.png)
+ 
+-A 60% keyboard featuring per-key RGB LEDs.
++A 60% keyboard made by Ducky Channel.
+ 
+-See child directories for compatible boards.
++The only supported keyboard version at this time is the DKON1861ST.
++
++* Hardware Supported:
++  * [DKON1861ST](1861st/), NUC123SD4AN0 + MBI5042GP
+diff --git a/keyboards/ducky/one2sf/1967st/1967st.c b/keyboards/ducky/one2sf/1967st/1967st.c
+new file mode 100644
+index 0000000000..c2c2e6a916
+--- /dev/null
++++ b/keyboards/ducky/one2sf/1967st/1967st.c
+@@ -0,0 +1,61 @@
++/* Copyright 2023 Wakeful Cloud
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation, either version 2 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
++ */
++
++#include "1967st.h"
++#include "quantum.h"
++
++#ifdef RGB_MATRIX_ENABLE
++const mbi_led g_mbi_leds[RGB_MATRIX_LED_COUNT] = {
++    {  0,  0 }, {  0,  1 }, {  0,  2 }, {  0,  3 }, {  0,  4 }, {  0,  5 }, {  0,  6 }, {  0,  7 }, {  0,  8 }, {  0,  9 }, {  0, 10 }, {  0, 11 }, {  0, 12 }, {  0, 13 }, {  0, 14 },
++    {  1,  0 }, {  1,  1 }, {  1,  2 }, {  1,  3 }, {  1,  4 }, {  1,  5 }, {  1,  6 }, {  1,  7 }, {  1,  8 }, {  1,  9 }, {  1, 10 }, {  1, 11 }, {  1, 12 }, {  1, 13 }, {  1, 14 },
++    {  2,  0 }, {  2,  1 }, {  2,  2 }, {  2,  3 }, {  2,  4 }, {  2,  5 }, {  2,  6 }, {  2,  7 }, {  2,  8 }, {  2,  9 }, {  2, 10 }, {  2, 11 }, {  2, 12 }, {  2, 13 }, {  2, 14 },
++    {  3,  0 }, {  3,  1 }, {  3,  2 }, {  3,  3 }, {  3,  4 }, {  3,  5 }, {  3,  6 }, {  3,  7 }, {  3,  8 }, {  3,  9 }, {  3, 10 }, {  3, 11 }, {  3, 12 }, {  3, 13 },
++    {  4,  0 }, {  4,  1 }, {  4,  2 },                         {  4,  5 },                                     {  4,  9 }, {  4, 10 }, {  4, 11 }, {  4, 12 }, {  4, 13 }, {  4, 14 }
++};
++
++led_config_t g_led_config = { {
++    // Key Matrix to LED Index
++    {      0,      1,      2,      3,      4,      5,      6,      7,      8,      9,     10,     11,     12,     13,     14 },
++    {     15,     16,     17,     18,     19,     20,     21,     22,     23,     24,     25,     26,     27,     28,     29 },
++    {     30,     31,     32,     33,     34,     35,     36,     37,     38,     39,     40,     41,     42,     43,     44 },
++    {     45,     46,     47,     48,     49,     50,     51,     52,     53,     54,     55,     56,     57,     58, NO_LED },
++    {     59,     60,     61, NO_LED, NO_LED,     62, NO_LED, NO_LED, NO_LED,     63,     64,     65,     66,     67,     68 },
++}, {
++    // LED Index to Physical Position
++
++    //Esc, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, -, =, Backspace, Delete
++    {  0,  0 }, { 16,  0 }, { 32,  0 }, { 48,  0 }, { 64,  0 }, { 80,  0 }, { 96,  0 }, { 112,  0 }, { 128,  0 }, { 144,  0 }, { 160,  0 }, { 176,  0 }, { 192,  0 }, { 208,  0 }, { 224,  0 },
++
++    //Tab, Q, W, E, R, T, Y, U, I, O, P, [, ], \, Page Up
++    {  0, 16 }, { 16, 16 }, { 32, 16 }, { 48, 16 }, { 64, 16 }, { 80, 16 }, { 96, 16 }, { 112, 16 }, { 128, 16 }, { 144, 16 }, { 160, 16 }, { 176, 16 }, { 192, 16 }, { 208, 16 }, { 224, 16 },
++
++    //Caps Lock, A, S, D, F, G, H, J, K, L, ;, ', #, Enter, Page Down
++    {  0, 32 }, { 16, 32 }, { 32, 32 }, { 48, 32 }, { 64, 32 }, { 80, 32 }, { 96, 32 }, { 112, 32 }, { 128, 32 }, { 144, 32 }, { 160, 32 }, { 176, 32 }, { 192, 32 }, { 208, 32 }, { 224, 32 },
++
++    //Shift, \, Z, X, C, V, B, N, M, ,, ., /, Shift, Up
++    {  0, 48 }, { 16, 48 }, { 32, 48 }, { 48, 48 }, { 64, 48 }, { 80, 48 }, { 96, 48 }, { 112, 48 }, { 128, 48 }, { 144, 48 }, { 160, 48 }, { 176, 48 }, { 192, 48 }, { 208, 48 },
++
++    //Ctrl, Win, Alt, Space, Alt, Fn, Ctrl, Left, Down Right
++    {  0, 64 }, { 16, 64 }, { 32, 64 },                         { 80, 64 },                                       { 144, 64 }, { 160, 64 }, { 176, 64 }, { 192, 64 }, { 208, 64 }, { 224, 64 }
++}, {
++    // LED Index to Flag
++    4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
++    4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
++    5, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
++    5, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 4,
++    5, 5, 5,       4,          5, 5, 5, 4, 4, 4
++} };
++#endif
+diff --git a/keyboards/ducky/one2sf/1967st/1967st.h b/keyboards/ducky/one2sf/1967st/1967st.h
+index e413721831..7262f88223 100644
+--- a/keyboards/ducky/one2sf/1967st/1967st.h
++++ b/keyboards/ducky/one2sf/1967st/1967st.h
+@@ -27,7 +27,7 @@
+  * The second converts the arguments into a two-dimensional array which
+  * represents the switch matrix.
+  */
+-#define LAYOUT_all( \
++#define LAYOUT_65_all( \
+     k00, k01, k02, k03, k04, k05, k06, k07, k08, k09, k0a, k0b, k0c, k0d, k0e, \
+     k10, k11, k12, k13, k14, k15, k16, k17, k18, k19, k1a, k1b, k1c, k1d, k1e, \
+     k20, k21, k22, k23, k24, k25, k26, k27, k28, k29, k2a, k2b, k2c, k2d, k2e, \
+@@ -37,6 +37,34 @@
+     { k00, k01, k02, k03, k04, k05, k06, k07, k08, k09, k0a, k0b, k0c, k0d, k0e }, \
+     { k10, k11, k12, k13, k14, k15, k16, k17, k18, k19, k1a, k1b, k1c, k1d, k1e }, \
+     { k20, k21, k22, k23, k24, k25, k26, k27, k28, k29, k2a, k2b, k2c, k2d, k2e }, \
+-    { k30, k31, k32, k33, k34, k35, k36, k37, k38, k39, k3a, k3b, k3c, k3d,     }, \
++    { k30, k31, k32, k33, k34, k35, k36, k37, k38, k39, k3a, k3b, k3c, k3d, XXX }, \
++    { k40, k41, k42, XXX, XXX, k45, XXX, XXX, XXX, k4a, k4b, k4c, k4d, k4e, k4f }  \
++}
++
++#define LAYOUT_65_ansi( \
++    k00, k01, k02, k03, k04, k05, k06, k07, k08, k09, k0a, k0b, k0c, k0d, k0e, \
++    k10, k11, k12, k13, k14, k15, k16, k17, k18, k19, k1a, k1b, k1c, k1d, k1e, \
++    k20, k21, k22, k23, k24, k25, k26, k27, k28, k29, k2a, k2b,      k2d, k2e, \
++    k30,      k32, k33, k34, k35, k36, k37, k38, k39, k3a, k3b, k3c, k3d,      \
++    k40, k41, k42,           k45,                k4a, k4b, k4c, k4d, k4e, k4f  \
++) { \
++    { k00, k01, k02, k03, k04, k05, k06, k07, k08, k09, k0a, k0b, k0c, k0d, k0e }, \
++    { k10, k11, k12, k13, k14, k15, k16, k17, k18, k19, k1a, k1b, k1c, k1d, k1e }, \
++    { k20, k21, k22, k23, k24, k25, k26, k27, k28, k29, k2a, k2b, XXX, k2d, k2e }, \
++    { k30, XXX, k32, k33, k34, k35, k36, k37, k38, k39, k3a, k3b, k3c, k3d, XXX }, \
++    { k40, k41, k42, XXX, XXX, k45, XXX, XXX, XXX, k4a, k4b, k4c, k4d, k4e, k4f }  \
++}
++
++#define LAYOUT_65_iso( \
++    k00, k01, k02, k03, k04, k05, k06, k07, k08, k09, k0a, k0b, k0c, k0d, k0e, \
++    k10, k11, k12, k13, k14, k15, k16, k17, k18, k19, k1a, k1b, k1c,      k1e, \
++    k20, k21, k22, k23, k24, k25, k26, k27, k28, k29, k2a, k2b, k2c, k2d, k2e, \
++    k30, k31, k32, k33, k34, k35, k36, k37, k38, k39, k3a, k3b, k3c, k3d,      \
++    k40, k41, k42,           k45,                k4a, k4b, k4c, k4d, k4e, k4f  \
++) { \
++    { k00, k01, k02, k03, k04, k05, k06, k07, k08, k09, k0a, k0b, k0c, k0d, k0e }, \
++    { k10, k11, k12, k13, k14, k15, k16, k17, k18, k19, k1a, k1b, k1c, XXX, k1e }, \
++    { k20, k21, k22, k23, k24, k25, k26, k27, k28, k29, k2a, k2b, k2c, k2d, k2e }, \
++    { k30, k31, k32, k33, k34, k35, k36, k37, k38, k39, k3a, k3b, k3c, k3d, XXX }, \
+     { k40, k41, k42, XXX, XXX, k45, XXX, XXX, XXX, k4a, k4b, k4c, k4d, k4e, k4f }  \
+ }
+diff --git a/keyboards/ducky/one2sf/1967st/config.h b/keyboards/ducky/one2sf/1967st/config.h
+index 8b29e8c3d4..35b7776f3e 100644
+--- a/keyboards/ducky/one2sf/1967st/config.h
++++ b/keyboards/ducky/one2sf/1967st/config.h
+@@ -17,7 +17,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ 
+ #pragma once
+ 
+-
+ /*
+  * Keyboard Matrix Assignments
+  *
+@@ -27,14 +26,22 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
+  * DIODE_DIRECTION: COL2ROW = COL = Anode (+), ROW = Cathode (-, marked on diode)
+  *                  ROW2COL = ROW = Anode (+), COL = Cathode (-, marked on diode)
+  *
+-*/
++ */
++
++//Matrix config
++#define MATRIX_ROWS 5
++#define MATRIX_COLS 15
+ #define MATRIX_ROW_PINS { D11, B4, B5, B6, B7 }
+-#define MATRIX_COL_PINS { B10, B9, C13, C12, C11, C10, C9, C8, A15, A14, A13, D0, D1, D2,B15,B8 }
++#define MATRIX_COL_PINS { B10, B9, C13, C12, C11, C10, C9, C8, A15, A14, A13, D0, D1, D2, B15/*, B8*/ }
+ #define DIP_SWITCH_MATRIX_GRID { {0,14}, {1,14}, {2,14}, {3,14} }
+ 
+-/* COL2ROW, ROW2COL*/
+-#define DIODE_DIRECTION COL2ROW
+-
++//Input config
+ #define FORCE_NKRO
+-
+ #define GPIO_INPUT_PIN_DELAY (NUC123_HCLK / 6 / 1000000L)
++
++//RGB config
++#define DIODE_DIRECTION COL2ROW
++#define RGB_MATRIX_LED_COUNT 75
++#define RGB_MATRIX_KEYPRESSES
++#define RGB_MATRIX_FRAMEBUFFER_EFFECTS
++#define USB_LED_CAPSLOCK_INDEX 30 //Location of caps lock LED in matrix
+\ No newline at end of file
+diff --git a/keyboards/ducky/one2sf/1967st/info.json b/keyboards/ducky/one2sf/1967st/info.json
+index 5361dbd4a0..ca420e88c4 100644
+--- a/keyboards/ducky/one2sf/1967st/info.json
++++ b/keyboards/ducky/one2sf/1967st/info.json
+@@ -7,8 +7,13 @@
+         "pid": "0x07AF",
+         "device_version": "0.0.1"
+     },
++    "layout_aliases": {
++        "LAYOUT_all": "LAYOUT_65_all",
++        "LAYOUT_ansi": "LAYOUT_65_ansi",
++        "LAYOUT_iso": "LAYOUT_65_iso"
++    },
+     "layouts": {
+-        "LAYOUT_all": {
++        "LAYOUT_65_all": {
+             "layout": [
+                 { "x": 0, "y": 0, "w": 1, "label": "ESC" },
+                 { "x": 1, "y": 0, "w": 1, "label": "1" },
+@@ -73,6 +78,159 @@
+                 { "x": 12.25, "y": 3, "w": 2, "label": "RSHIFT" },
+                 { "x": 14.25, "y": 3, "w": 1, "label": "UP" },
+ 
++                { "x": 0, "y": 4, "w": 1.25, "label": "LCTRL" },
++                { "x": 1.25, "y": 4, "w": 1.25, "label": "LCMD" },
++                { "x": 2.5, "y": 4, "w": 1.25, "label": "LALT" },
++                { "x": 3.75, "y": 4, "w": 6.25, "label": "SPACE" },
++                { "x": 10, "y": 4, "w": 1, "label": "RALT" },
++                { "x": 11, "y": 4, "w": 1, "label": "FN" },
++                { "x": 12, "y": 4, "w": 1.25, "label": "RCTRL" },
++                { "x": 13.25, "y": 4, "w": 1, "label": "LEFT" },
++                { "x": 14.25, "y": 4, "w": 1, "label": "DOWN" },
++                { "x": 15.25, "y": 4, "w": 1, "label": "RIGHT" }
++            ]
++        },
++
++        "LAYOUT_65_ansi": {
++            "layout": [
++                { "x": 0, "y": 0, "w": 1, "label": "ESC" },
++                { "x": 1, "y": 0, "w": 1, "label": "1" },
++                { "x": 2, "y": 0, "w": 1, "label": "2" },
++                { "x": 3, "y": 0, "w": 1, "label": "3" },
++                { "x": 4, "y": 0, "w": 1, "label": "4" },
++                { "x": 5, "y": 0, "w": 1, "label": "5" },
++                { "x": 6, "y": 0, "w": 1, "label": "6" },
++                { "x": 7, "y": 0, "w": 1, "label": "7" },
++                { "x": 8, "y": 0, "w": 1, "label": "8" },
++                { "x": 9, "y": 0, "w": 1, "label": "9" },
++                { "x": 10, "y": 0, "w": 1, "label": "0" },
++                { "x": 11, "y": 0, "w": 1, "label": "DASH" },
++                { "x": 12, "y": 0, "w": 1, "label": "EQUALSIGN" },
++                { "x": 13, "y": 0, "w": 2, "label": "BACKSPACE" },
++                { "x": 15.25, "y": 0, "w": 1, "label": "DEL" },
++
++                { "x": 0, "y": 1, "w": 1.5, "label": "TAB" },
++                { "x": 1.5, "y": 1, "w": 1, "label": "Q" },
++                { "x": 2.5, "y": 1, "w": 1, "label": "W" },
++                { "x": 3.5, "y": 1, "w": 1, "label": "E" },
++                { "x": 4.5, "y": 1, "w": 1, "label": "R" },
++                { "x": 5.5, "y": 1, "w": 1, "label": "T" },
++                { "x": 6.5, "y": 1, "w": 1, "label": "Y" },
++                { "x": 7.5, "y": 1, "w": 1, "label": "U" },
++                { "x": 8.5, "y": 1, "w": 1, "label": "I" },
++                { "x": 9.5, "y": 1, "w": 1, "label": "O" },
++                { "x": 10.5, "y": 1, "w": 1, "label": "P" },
++                { "x": 11.5, "y": 1, "w": 1, "label": "LBRACKET" },
++                { "x": 12.5, "y": 1, "w": 1, "label": "RBRACKET" },
++                { "x": 13.5, "y": 1, "w": 1.5, "label": "BACKSLASH" },
++                { "x": 15.25, "y": 1, "w": 1, "label": "PAGEUP" },
++
++                { "x": 0, "y": 2, "w": 1.75, "label": "CAPSLOCK" },
++                { "x": 1.75, "y": 2, "w": 1, "label": "A" },
++                { "x": 2.75, "y": 2, "w": 1, "label": "S" },
++                { "x": 3.75, "y": 2, "w": 1, "label": "D" },
++                { "x": 4.75, "y": 2, "w": 1, "label": "F" },
++                { "x": 5.75, "y": 2, "w": 1, "label": "G" },
++                { "x": 6.75, "y": 2, "w": 1, "label": "H" },
++                { "x": 7.75, "y": 2, "w": 1, "label": "J" },
++                { "x": 8.75, "y": 2, "w": 1, "label": "K" },
++                { "x": 9.75, "y": 2, "w": 1, "label": "L" },
++                { "x": 10.75, "y": 2, "w": 1, "label": "SEMICOLON" },
++                { "x": 11.75, "y": 2, "w": 1, "label": "QUOTE" },
++                { "x": 12.75, "y": 2, "w": 2.25, "label": "ENTER" },
++                { "x": 15.25, "y": 2, "w": 1, "label": "PAGEDOWN" },
++
++                { "x": 0, "y": 3, "w": 2.25, "label": "LSHIFT" },
++                { "x": 2.25, "y": 3, "w": 1, "label": "Z" },
++                { "x": 3.25, "y": 3, "w": 1, "label": "X" },
++                { "x": 4.25, "y": 3, "w": 1, "label": "C" },
++                { "x": 5.25, "y": 3, "w": 1, "label": "V" },
++                { "x": 6.25, "y": 3, "w": 1, "label": "B" },
++                { "x": 7.25, "y": 3, "w": 1, "label": "N" },
++                { "x": 8.25, "y": 3, "w": 1, "label": "M" },
++                { "x": 9.25, "y": 3, "w": 1, "label": "COMMA" },
++                { "x": 10.25, "y": 3, "w": 1, "label": "PERIOD" },
++                { "x": 11.25, "y": 3, "w": 1, "label": "SLASH" },
++                { "x": 12.25, "y": 3, "w": 2, "label": "RSHIFT" },
++                { "x": 14.25, "y": 3, "w": 1, "label": "UP" },
++
++                { "x": 0, "y": 4, "w": 1.25, "label": "LCTRL" },
++                { "x": 1.25, "y": 4, "w": 1.25, "label": "LCMD" },
++                { "x": 2.5, "y": 4, "w": 1.25, "label": "LALT" },
++                { "x": 3.75, "y": 4, "w": 6.25, "label": "SPACE" },
++                { "x": 10, "y": 4, "w": 1, "label": "RALT" },
++                { "x": 11, "y": 4, "w": 1, "label": "FN" },
++                { "x": 12, "y": 4, "w": 1.25, "label": "RCTRL" },
++                { "x": 13.25, "y": 4, "w": 1, "label": "LEFT" },
++                { "x": 14.25, "y": 4, "w": 1, "label": "DOWN" },
++                { "x": 15.25, "y": 4, "w": 1, "label": "RIGHT" }
++            ]
++        },
++
++        "LAYOUT_65_iso": {
++            "layout": [
++                { "x": 0, "y": 0, "w": 1, "label": "ESC" },
++                { "x": 1, "y": 0, "w": 1, "label": "1" },
++                { "x": 2, "y": 0, "w": 1, "label": "2" },
++                { "x": 3, "y": 0, "w": 1, "label": "3" },
++                { "x": 4, "y": 0, "w": 1, "label": "4" },
++                { "x": 5, "y": 0, "w": 1, "label": "5" },
++                { "x": 6, "y": 0, "w": 1, "label": "6" },
++                { "x": 7, "y": 0, "w": 1, "label": "7" },
++                { "x": 8, "y": 0, "w": 1, "label": "8" },
++                { "x": 9, "y": 0, "w": 1, "label": "9" },
++                { "x": 10, "y": 0, "w": 1, "label": "0" },
++                { "x": 11, "y": 0, "w": 1, "label": "DASH" },
++                { "x": 12, "y": 0, "w": 1, "label": "EQUALSIGN" },
++                { "x": 13, "y": 0, "w": 2, "label": "BACKSPACE" },
++                { "x": 15.25, "y": 0, "w": 1, "label": "DEL" },
++
++                { "x": 0, "y": 1, "w": 1.5, "label": "TAB" },
++                { "x": 1.5, "y": 1, "w": 1, "label": "Q" },
++                { "x": 2.5, "y": 1, "w": 1, "label": "W" },
++                { "x": 3.5, "y": 1, "w": 1, "label": "E" },
++                { "x": 4.5, "y": 1, "w": 1, "label": "R" },
++                { "x": 5.5, "y": 1, "w": 1, "label": "T" },
++                { "x": 6.5, "y": 1, "w": 1, "label": "Y" },
++                { "x": 7.5, "y": 1, "w": 1, "label": "U" },
++                { "x": 8.5, "y": 1, "w": 1, "label": "I" },
++                { "x": 9.5, "y": 1, "w": 1, "label": "O" },
++                { "x": 10.5, "y": 1, "w": 1, "label": "P" },
++                { "x": 11.5, "y": 1, "w": 1, "label": "LBRACKET" },
++                { "x": 12.5, "y": 1, "w": 1, "label": "RBRACKET" },
++                { "x": 15.25, "y": 1, "w": 1, "label": "PAGEUP" },
++
++                { "x": 0, "y": 2, "w": 1.75, "label": "CAPSLOCK" },
++                { "x": 1.75, "y": 2, "w": 1, "label": "A" },
++                { "x": 2.75, "y": 2, "w": 1, "label": "S" },
++                { "x": 3.75, "y": 2, "w": 1, "label": "D" },
++                { "x": 4.75, "y": 2, "w": 1, "label": "F" },
++                { "x": 5.75, "y": 2, "w": 1, "label": "G" },
++                { "x": 6.75, "y": 2, "w": 1, "label": "H" },
++                { "x": 7.75, "y": 2, "w": 1, "label": "J" },
++                { "x": 8.75, "y": 2, "w": 1, "label": "K" },
++                { "x": 9.75, "y": 2, "w": 1, "label": "L" },
++                { "x": 10.75, "y": 2, "w": 1, "label": "SEMICOLON" },
++                { "x": 11.75, "y": 2, "w": 1, "label": "QUOTE" },
++                { "x": 12.75, "y": 2, "w": 1, "label": "ISOHASH" },
++                { "x": 13.75, "y": 1, "w": 1.25, "h": 2, "label": "ENTER" },
++                { "x": 15.25, "y": 2, "w": 1, "label": "PAGEDOWN" },
++
++                { "x": 0, "y": 3, "w": 1.25, "label": "LSHIFT" },
++                { "x": 1.25, "y": 3, "w": 1, "label": "ISOBACKSLASH" },
++                { "x": 2.25, "y": 3, "w": 1, "label": "Z" },
++                { "x": 3.25, "y": 3, "w": 1, "label": "X" },
++                { "x": 4.25, "y": 3, "w": 1, "label": "C" },
++                { "x": 5.25, "y": 3, "w": 1, "label": "V" },
++                { "x": 6.25, "y": 3, "w": 1, "label": "B" },
++                { "x": 7.25, "y": 3, "w": 1, "label": "N" },
++                { "x": 8.25, "y": 3, "w": 1, "label": "M" },
++                { "x": 9.25, "y": 3, "w": 1, "label": "COMMA" },
++                { "x": 10.25, "y": 3, "w": 1, "label": "PERIOD" },
++                { "x": 11.25, "y": 3, "w": 1, "label": "SLASH" },
++                { "x": 12.25, "y": 3, "w": 2, "label": "RSHIFT" },
++                { "x": 14.25, "y": 3, "w": 1, "label": "UP" },
++
+                 { "x": 0, "y": 4, "w": 1.25, "label": "LCTRL" },
+                 { "x": 1.25, "y": 4, "w": 1.25, "label": "LCMD" },
+                 { "x": 2.5, "y": 4, "w": 1.25, "label": "LALT" },
+diff --git a/keyboards/ducky/one2sf/1967st/readme.md b/keyboards/ducky/one2sf/1967st/readme.md
+index be96a8db71..9b2b93cc82 100644
+--- a/keyboards/ducky/one2sf/1967st/readme.md
++++ b/keyboards/ducky/one2sf/1967st/readme.md
+@@ -1,32 +1,125 @@
+ # One 2 SF (DKON1967ST)
+ 
+-A 65% keyboard by Ducky.
++![One 2 SF](https://www.duckychannel.com.tw/upload/2019_05_142/201905141721227o2fxn6LX1.png)
++
++A 65% keyboard made by Ducky Channel.
+ 
+ This firmware was tested on the Ducky One 2 SF 1967ST version.
+ 
+ * Keyboard Maintainer: [f7urry](https://github.com/f7urry)
+-* Hardware Supported: Ducky One 2 SF RGB (DKON1967ST), NUC123SD4AN0 + MBI5043GP
+-  * Only ANSI layout is supported at this time (ISO & VIA still WIP).
+-  * RGB LEDs are currently disabled until the driver is merged.
++* Hardware Supported: Ducky One 2 SF RGB (DKON1967ST) + NUC123SD4AN0 + MBI5043GP
++* Hardware Availability: [Ducky Channel](https://www.duckychannel.com.tw/en/Ducky-One2-SF)
++    * RGB LEDs are currently disabled until the driver is merged.
+ 
+-## Compiling the Firmware:
++## Compiling the Firmware
+ 
+-    make ducky/one2sf/1967st:default
++```
++make ducky/one2sf/1967st:default
++```
+ 
+ ## Accessing Bootloader Mode
+ 
+-To enter the 1967ST bootloader to flash, boot the keyboard while holding D+L.
++To enter the 1967ST bootloader to flash, boot the keyboard while holding `D` and `L`.
+ 
+-## Flashing the Firmware:
++## Flashing the Firmware
+ 
+ There are then two ways to flash the keyboard:
+ 
+-    pip install --user nuvoton-isp
+-    nuvoisp -f ducky_one2sf_ansi.bin
++```
++pip install --user nuvoton-isp
++nuvoisp -f ducky_one2sf_ansi.bin
++```
+ 
+ Alternatively you can use elfmimi's [nu-isp-cli](https://lib.rs/crates/nu-isp-cli) which is more complete than nuvoisp and allows flashing .hex files as well.
+ 
+-    cargo install nu-isp-cli
+-    nu-isp-cli flash ducky_one2sf_ansi.bin
++```
++cargo install nu-isp-cli
++nu-isp-cli flash ducky_one2sf_ansi.bin
++```
++
++* If you get `Are you sure device is plugged in and in bootloader mode?`, try the below (in order):
++    * If your backlight is on or you can still type, hold `D` and `L` while plugging in the keyboard
++    * Double-check you added the [udev rules](https://github.com/elfmimi/nu-isp-rs/tree/master/nu-isp-cli#linux) (**Linux only**)
++    * Run the flash command as an administrator/root
++    * Flash the original firmware using the Ducky firmware utility and try again
+ 
+ See the [build environment setup](https://docs.qmk.fm/#/getting_started_build_tools) and the [make instructions](https://docs.qmk.fm/#/getting_started_make_guide) for more information. Brand new to QMK? Start with our [Complete Newbs Guide](https://docs.qmk.fm/#/newbs).
++
++## Original Firmware
++
++It's often helpful to have the proprietary firmware to compare this one with when developing. However, Ducky Channel only provides the firmware in the form of a Windows-only utility, but it is possible to extract the firmware binary if you know the firmware's location inside of the utility (Credit to [/u/DarioSinoLogic16](https://reddit.com/comments/zker40/comment/j0iql61) on Reddit for the inspiration).
++
++### Known Start/End Addresses
++
++These are well-known firmware start/end addresses. While there's no guarantee that they'll work or won't brick your keyboard, they've all been manually tested and work.
++
++Download | Utility Name | Utility SHA512 | Start Address | End Address | Firmware SHA512
++--- | --- | --- | --- | --- | ---
++[`20220919101715ca3l950D41.zip`](https://www.duckychannel.com.tw/upload/2022_09_192/20220919101715ca3l950D41.zip) | `Ducky_One2_SF_V1.14.exe` | `a349a4c62ab198a7b68efb71af7937530d046710579c05674ec5c0802df7e598e9df5f63476f8be209e26f6ee85e744d6d3ca65eb8896a3800d3e0fd869a5c2a` | `0x207db0` | `0x2126db` | `c014d3cb5c10d72e816753f7d9adc1dad58202ef35e48713b8b3bf1fa1d3490c84fd562cc3ab41595ee8cef02573555d8982ca6e02388f84fc40362179f0546e`
++
++### Calculating the Start/End Addresses
++
++This step is required if you don't already know start/end addresses. Note that you'll need a computer/VM with Windows installed on it.
++
++1. Install [Ghidra](https://ghidra-sre.org) and [WireShark](https://wireshark.org) (With USBPCap)
++2. Open WireShark and select the appropriate USB interface, and start capturing USB packets (You can tell if the interface is the right one by pressing keys on your keyboard and seeing if the incoming packets roughly correlate with when you pressed the keys)
++3. Use the firmware update utility to update your keyboard's firmware like you would normally
++4. Stop the capture
++5. Apply a display filter to show only USB packets sent to your keyboard (i.e.: `usb.dst == "X.Y.Z"`; replace `X.Y.Z` with the appropriate address)
++6. Choose a random packet (Generally avoid the first/last ~10 packets as well as those with lower entropy/lots of `0`'s)
++7. Copy ~8 bytes from near end of the HID Data field (Again avoid anything with lower entropy/lots of `0`'s)
++8. Open Ghidra, create a new project, import the firmware update utility, and actually open the firmware update utility (in Ghidra)
++9. Press `s` or click `Search` in the menu bar, paste the bytes you copied from step 7, click `Advanced >>`, select `Big Endian` for the byte order, then click `Search All`
++10. If Ghidra shows anything other than exactly one match, go back to step 6 and choose a different packet
++11. Click on the match to go to the address
++12. Press `CTRL + ALT + T` or click the vertical arrow in the menu bar to toggle the code unit search direction (Make sure the arrow points upwards)
++13. Press `CTRL + ALT + L` or click the blue `L` icon to go to the previous label
++14. In Wireshark, press `CTRL + F` or click on the search icon, search for the **<u>next</u>** ~8 bytes from the address you're currently at in Ghidra, and ensure it matches one of the **<u>first</u>** few packets (This ensures you're at the start of the firmware)
++15. Back in Ghidra, hover over the address and record the byte source offset (Ignore the `+` and `h`; this is the start address)
++16. Press `CTRL + ALT + T` or click the vertical arrow in the menu bar to toggle the code unit search direction (Make sure the arrow points downwards)
++17. Press `CTRL + ALT + L` or click the blue `L` icon to go to the next label
++18. In Wireshark, press `CTRL + F` or click on the search icon, search for the **<u>previous</u>** ~8 bytes from the address directly **<u>preceeding</u>** the one you're currently at in Ghidra, and ensure it matches one of the **<u>last</u>** few packets (This ensures you're at the end of the firmware)
++19. Back in Ghidra, hover over the **<u>preceding</u>** address and record the byte source offset (Ignore the `+` and `h`; this is the end address)
++
++### Extracting the Firmware
++
++1. Extract the firmware:
++```powershell
++# Windows
++$startAddress = 0xYYYYYY # Replace with the start address
++$endAddress = 0xZZZZZZ # Replace with the end address
++
++$raw = Get-Content -Path UTILITY_PATH -AsByteStream -Raw # Replace UTILITY_PATH with the path to the utility
++$firmware = $raw[$startAddress..($endAddress - 1)]
++Set-Content -Path firmware.bin -Value $firmware -AsByteStream
++```
++or
++```bash
++# Linux
++startAddress=$((0xYYYYYY)) # Replace with the start address
++endAddress=$((0xZZZZZZ)) # Replace with the end address
++
++dd if=UTILITY_PATH of=firmware.bin bs=1 skip=$startAddress count=$(($endAddress - $startAddress)) # Replace UTILITY_PATH with the path to the utility
++```
++2. Hold `D` and `L` while plugging in the keyboard
++3. Flash the firmware:
++```
++nu-isp-cli flash firmware.bin
++```
++
++## Electrical Information
++
++### Pinout
++
++* `PA.12`: 3.4 V @ 2.000 MHz (GCLK)
++* `PB.12`: 3.4 V @ 769 KHz (U8 SDI/Blue)
++* `PB.13`: 3.4 V @ 769 KHz (U7 SDI/Green)
++* `PB.14`: 3.4 V @ 769 KHz (U3 SDI/Red)
++* `PD.3`: 3.4 V @ 87 kHz (LE)
++* `PD.4`: 2 V @ 1.408 MHz (DCLK)
++
++
++### RGB Matrix
++
++* Red, green, and blue channels are shorted vertically
++* Common positive is are shorted horizontally
+\ No newline at end of file
+diff --git a/keyboards/ducky/one2sf/1967st/rules.mk b/keyboards/ducky/one2sf/1967st/rules.mk
+index a5b4708b26..d4aa85aef5 100644
+--- a/keyboards/ducky/one2sf/1967st/rules.mk
++++ b/keyboards/ducky/one2sf/1967st/rules.mk
+@@ -28,7 +28,10 @@ NKRO_ENABLE = yes           # Enable N-Key Rollover
+ BACKLIGHT_ENABLE = no       # Enable keyboard backlight functionality
+ RGBLIGHT_ENABLE = no        # Enable keyboard RGB underglow
+ AUDIO_ENABLE = no           # Audio output
+-DIP_SWITCH_ENABLE = yes
++DIP_SWITCH_ENABLE = yes     # Enable dip switches
++CIE1931_CURVE = no 				  # Use the 16-bit CIE1931 curve instead
++RGB_MATRIX_ENABLE = yes     # Use RGB matrix
++RGB_MATRIX_DRIVER = MBI5043 # Use the MBI5043 driver
+ 
+ # Enter lower-power sleep mode when on the ChibiOS idle thread
+ OPT_DEFS += -DCORTEX_ENABLE_WFI_IDLE=TRUE
+diff --git a/keyboards/ducky/one2sf/keymaps/ansi/keymap.c b/keyboards/ducky/one2sf/keymaps/ansi/keymap.c
+new file mode 100644
+index 0000000000..75955de7fe
+--- /dev/null
++++ b/keyboards/ducky/one2sf/keymaps/ansi/keymap.c
+@@ -0,0 +1,55 @@
++/* Copyright 2019 /u/KeepItUnder
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation, either version 2 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
++ */
++#include QMK_KEYBOARD_H
++
++// LAYERS
++enum Layer {
++    _QWERTY = 0,        // Standard QWERTY layer
++    _FUNCTION,          // Function key layer
++    _COLOUR             // RGB key layer
++};
++#define _QW _QWERTY
++#define _FN _FUNCTION
++#define _CLR _COLOUR
++
++const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
++
++    [_QWERTY] = LAYOUT_65_ansi(
++        //       2        3        4        5        6        7        8        9        10       11       12       13       14       15
++        QK_GESC, KC_1,    KC_2,    KC_3,    KC_4,    KC_5,    KC_6,    KC_7,    KC_8,    KC_9,    KC_0,    KC_MINS, KC_EQL,  KC_BSPC, KC_DEL,
++        KC_TAB,  KC_Q,    KC_W,    KC_E,    KC_R,    KC_T,    KC_Y,    KC_U,    KC_I,    KC_O,    KC_P,    KC_LBRC, KC_RBRC, KC_BSLS, KC_PGUP,
++        KC_CAPS, KC_A,    KC_S,    KC_D,    KC_F,    KC_G,    KC_H,    KC_J,    KC_K,    KC_L,    KC_SCLN, KC_QUOT,          KC_ENT,  KC_PGDN,
++        KC_LSFT,          KC_Z,    KC_X,    KC_C,    KC_V,    KC_B,    KC_N,    KC_M,    KC_COMM, KC_DOT,  KC_SLSH, KC_RSFT, KC_UP,
++        KC_LCTL, KC_LGUI, KC_LALT,                   KC_SPC,                             KC_RALT, MO(1),   KC_RCTL, KC_LEFT, KC_DOWN, KC_RGHT
++    ),
++
++    [_FUNCTION] = LAYOUT_65_ansi(
++        KC_GRV,  KC_F1,   KC_F2,   KC_F3,   KC_F4,   KC_F5,   KC_F6,   KC_F7,   KC_F8,   KC_F9,    KC_F10,  KC_F11,  KC_F12,  KC_DEL,  _______,
++        _______, KC_BTN1, KC_MS_U, KC_BTN2, KC_WH_U, _______, KC_INS,  _______, KC_UP,   KC_PAUSE, KC_PGUP, KC_HOME, KC_PSCR, _______, KC_HOME,
++        _______, KC_MS_L, KC_MS_D, KC_MS_R, KC_WH_D, _______, KC_SCRL, KC_LEFT, KC_DOWN, KC_RIGHT, KC_PGDN, KC_END,           _______, KC_END,
++        _______,          RGB_TOG, RGB_MOD, RGB_HUI, RGB_HUD, RGB_SAI, RGB_SAD, KC_MUTE, KC_VOLD,  KC_VOLU, _______, _______, _______,
++        _______, _______, _______,                            _______,                   MO(2),    _______, _______, _______, _______, _______
++    ),
++
++    [_COLOUR] = LAYOUT_65_ansi(
++        _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______,
++        _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______,
++        _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______,          _______, _______,
++        _______,          RGB_TOG, RGB_MOD, RGB_HUI, RGB_HUD, RGB_SAI, RGB_SAD, _______, _______, _______, _______, _______, _______,
++        _______, _______, _______,                            _______,                   _______, _______, _______, _______, _______, _______
++    ),
++
++};
+diff --git a/keyboards/ducky/one2sf/keymaps/ansi/readme.md b/keyboards/ducky/one2sf/keymaps/ansi/readme.md
+new file mode 100644
+index 0000000000..402eaba121
+--- /dev/null
++++ b/keyboards/ducky/one2sf/keymaps/ansi/readme.md
+@@ -0,0 +1 @@
++# The default ANSI keymap for one2sf
+\ No newline at end of file
+diff --git a/keyboards/ducky/one2sf/keymaps/default/keymap.c b/keyboards/ducky/one2sf/keymaps/default/keymap.c
+index 044b5067f6..f5f9d89414 100644
+--- a/keyboards/ducky/one2sf/keymaps/default/keymap.c
++++ b/keyboards/ducky/one2sf/keymaps/default/keymap.c
+@@ -27,16 +27,16 @@ enum Layer {
+ 
+ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
+ 
+-    [_QWERTY] = LAYOUT_all(
+-        //       2        3        4        5        6        7        8        9        10       11       12       13       14         15
++    [_QWERTY] = LAYOUT_65_all(
++        //       2        3        4        5        6        7        8        9        10       11       12       13       14       15
+         QK_GESC, KC_1,    KC_2,    KC_3,    KC_4,    KC_5,    KC_6,    KC_7,    KC_8,    KC_9,    KC_0,    KC_MINS, KC_EQL,  KC_BSPC, KC_DEL,
+         KC_TAB,  KC_Q,    KC_W,    KC_E,    KC_R,    KC_T,    KC_Y,    KC_U,    KC_I,    KC_O,    KC_P,    KC_LBRC, KC_RBRC, KC_BSLS, KC_PGUP,
+         KC_CAPS, KC_A,    KC_S,    KC_D,    KC_F,    KC_G,    KC_H,    KC_J,    KC_K,    KC_L,    KC_SCLN, KC_QUOT, KC_NUHS, KC_ENT,  KC_PGDN,
+         KC_LSFT, KC_NUBS, KC_Z,    KC_X,    KC_C,    KC_V,    KC_B,    KC_N,    KC_M,    KC_COMM, KC_DOT,  KC_SLSH, KC_RSFT, KC_UP,
+-        KC_LCTL, KC_LGUI, KC_LALT,                            KC_SPC,                    KC_RALT, MO(1),   KC_RCTL, KC_LEFT, KC_DOWN, KC_RGHT
++        KC_LCTL, KC_LGUI, KC_LALT,                   KC_SPC,                             KC_RALT, MO(1),   KC_RCTL, KC_LEFT, KC_DOWN, KC_RGHT
+     ),
+ 
+-    [_FUNCTION] = LAYOUT_all(
++    [_FUNCTION] = LAYOUT_65_all(
+         KC_GRV,  KC_F1,   KC_F2,   KC_F3,   KC_F4,   KC_F5,   KC_F6,   KC_F7,   KC_F8,   KC_F9,    KC_F10,  KC_F11,  KC_F12,  KC_DEL,  _______,
+         _______, KC_BTN1, KC_MS_U, KC_BTN2, KC_WH_U, _______, KC_INS,  _______, KC_UP,   KC_PAUSE, KC_PGUP, KC_HOME, KC_PSCR, _______, KC_HOME,
+         _______, KC_MS_L, KC_MS_D, KC_MS_R, KC_WH_D, _______, KC_SCRL, KC_LEFT, KC_DOWN, KC_RIGHT, KC_PGDN, KC_END,  _______, _______, KC_END,
+@@ -44,7 +44,7 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
+         _______, _______, _______,                            _______,                   MO(2),    _______, _______, _______, _______, _______
+     ),
+ 
+-    [_COLOUR] = LAYOUT_all(
++    [_COLOUR] = LAYOUT_65_all(
+         _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______,
+         _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______,
+         _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______,
+diff --git a/keyboards/ducky/one2sf/keymaps/iso/keymap.c b/keyboards/ducky/one2sf/keymaps/iso/keymap.c
+new file mode 100644
+index 0000000000..a757e48c8c
+--- /dev/null
++++ b/keyboards/ducky/one2sf/keymaps/iso/keymap.c
+@@ -0,0 +1,55 @@
++/* Copyright 2019 /u/KeepItUnder
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation, either version 2 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
++ */
++#include QMK_KEYBOARD_H
++
++// LAYERS
++enum Layer {
++    _QWERTY = 0,        // Standard QWERTY layer
++    _FUNCTION,          // Function key layer
++    _COLOUR             // RGB key layer
++};
++#define _QW _QWERTY
++#define _FN _FUNCTION
++#define _CLR _COLOUR
++
++const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
++
++    [_QWERTY] = LAYOUT_65_iso(
++        //       2        3        4        5        6        7        8        9        10       11       12       13       14       15
++        QK_GESC, KC_1,    KC_2,    KC_3,    KC_4,    KC_5,    KC_6,    KC_7,    KC_8,    KC_9,    KC_0,    KC_MINS, KC_EQL,  KC_BSPC, KC_DEL,
++        KC_TAB,  KC_Q,    KC_W,    KC_E,    KC_R,    KC_T,    KC_Y,    KC_U,    KC_I,    KC_O,    KC_P,    KC_LBRC, KC_RBRC,          KC_PGUP,
++        KC_CAPS, KC_A,    KC_S,    KC_D,    KC_F,    KC_G,    KC_H,    KC_J,    KC_K,    KC_L,    KC_SCLN, KC_QUOT, KC_NUHS, KC_ENT,  KC_PGDN,
++        KC_LSFT, KC_NUBS, KC_Z,    KC_X,    KC_C,    KC_V,    KC_B,    KC_N,    KC_M,    KC_COMM, KC_DOT,  KC_SLSH, KC_RSFT, KC_UP,
++        KC_LCTL, KC_LGUI, KC_LALT,                   KC_SPC,                             KC_RALT, MO(1),   KC_RCTL, KC_LEFT, KC_DOWN, KC_RGHT
++    ),
++
++    [_FUNCTION] = LAYOUT_65_iso(
++        KC_GRV,  KC_F1,   KC_F2,   KC_F3,   KC_F4,   KC_F5,   KC_F6,   KC_F7,   KC_F8,   KC_F9,    KC_F10,  KC_F11,  KC_F12,  KC_DEL,  _______,
++        _______, KC_BTN1, KC_MS_U, KC_BTN2, KC_WH_U, _______, KC_INS,  _______, KC_UP,   KC_PAUSE, KC_PGUP, KC_HOME, KC_PSCR,          KC_HOME,
++        _______, KC_MS_L, KC_MS_D, KC_MS_R, KC_WH_D, _______, KC_SCRL, KC_LEFT, KC_DOWN, KC_RIGHT, KC_PGDN, KC_END,  _______, _______, KC_END,
++        _______, _______, RGB_TOG, RGB_MOD, RGB_HUI, RGB_HUD, RGB_SAI, RGB_SAD, KC_MUTE, KC_VOLD,  KC_VOLU, _______, _______, _______,
++        _______, _______, _______,                            _______,                   MO(2),    _______, _______, _______, _______, _______
++    ),
++
++    [_COLOUR] = LAYOUT_65_iso(
++        _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______,
++        _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______,          _______,
++        _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, _______,
++        _______, _______, RGB_TOG, RGB_MOD, RGB_HUI, RGB_HUD, RGB_SAI, RGB_SAD, _______, _______, _______, _______, _______, _______,
++        _______, _______, _______,                            _______,                   _______, _______, _______, _______, _______, _______
++    ),
++
++};
+diff --git a/keyboards/ducky/one2sf/keymaps/iso/readme.md b/keyboards/ducky/one2sf/keymaps/iso/readme.md
+new file mode 100644
+index 0000000000..9e383ea356
+--- /dev/null
++++ b/keyboards/ducky/one2sf/keymaps/iso/readme.md
+@@ -0,0 +1 @@
++# The default ISO keymap for one2sf
+\ No newline at end of file
+diff --git a/keyboards/ducky/one2sf/keymaps/wakeful-cloud/config.h b/keyboards/ducky/one2sf/keymaps/wakeful-cloud/config.h
+new file mode 100644
+index 0000000000..08eeeb02b3
+--- /dev/null
++++ b/keyboards/ducky/one2sf/keymaps/wakeful-cloud/config.h
+@@ -0,0 +1,25 @@
++/* Copyright 2019 /u/KeepItUnder
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation, either version 2 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
++ */
++
++#pragma once
++
++// place overrides here
++#define GRAVE_ESC_GUI_OVERRIDE
++#define MK_3_SPEED
++#define MK_C_OFFSET_UNMOD   400    /* Cursor offset per movement (unmodified) */
++#define MK_C_INTERVAL_UNMOD  5     /* Time between cursor movements (unmodified) */
++#define MK_W_OFFSET_UNMOD   100    /* Scroll steps per scroll action (unmodified) */
++#define MK_W_INTERVAL_UNMOD 10     /* Time between scroll steps (unmodified) */
+\ No newline at end of file
+diff --git a/keyboards/ducky/one2sf/keymaps/wakeful-cloud/keymap.c b/keyboards/ducky/one2sf/keymaps/wakeful-cloud/keymap.c
+new file mode 100644
+index 0000000000..f0a1e9a03b
+--- /dev/null
++++ b/keyboards/ducky/one2sf/keymaps/wakeful-cloud/keymap.c
+@@ -0,0 +1,24 @@
++#include QMK_KEYBOARD_H
++
++
++/* THIS FILE WAS GENERATED!
++ *
++ * This file was generated by qmk json2c. You may or may not want to
++ * edit it directly.
++ */
++
++const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
++	[0] = LAYOUT_65_all(QK_GESC, KC_1, KC_2, KC_3, KC_4, KC_5, KC_6, KC_7, KC_8, KC_9, KC_0, KC_MINS, KC_EQL, KC_BSPC, KC_DEL, KC_TAB, KC_Q, KC_W, KC_E, KC_R, KC_T, KC_Y, KC_U, KC_I, KC_O, KC_P, KC_LBRC, KC_RBRC, KC_BSLS, KC_HOME, KC_CAPS, KC_A, KC_S, KC_D, KC_F, KC_G, KC_H, KC_J, KC_K, KC_L, KC_SCLN, KC_QUOT, KC_NUHS, KC_ENT, KC_END, KC_LSFT, KC_NUBS, KC_Z, KC_X, KC_C, KC_V, KC_B, KC_N, KC_M, KC_COMM, KC_DOT, KC_SLSH, KC_RSFT, KC_UP, KC_LCTL, KC_LGUI, KC_LALT, KC_SPC, KC_RALT, MO(1), KC_RCTL, KC_LEFT, KC_DOWN, KC_RGHT),
++	[1] = LAYOUT_65_all(KC_GRV, KC_F1, KC_F2, KC_F3, KC_F4, KC_F5, KC_F6, KC_F7, KC_F8, KC_F9, KC_F10, KC_F11, KC_F12, KC_DEL, KC_TRNS, KC_TRNS, KC_BTN1, KC_MS_U, KC_BTN2, KC_WH_U, KC_TRNS, KC_INS, KC_TRNS, KC_UP, KC_PAUS, KC_PGUP, KC_HOME, KC_PSCR, KC_TRNS, KC_PGUP, KC_TRNS, KC_MS_L, KC_MS_D, KC_MS_R, KC_WH_D, KC_TRNS, KC_SCRL, KC_LEFT, KC_DOWN, KC_RGHT, KC_PGDN, KC_END, KC_TRNS, KC_TRNS, KC_PGDN, KC_TRNS, KC_TRNS, RGB_TOG, RGB_MOD, RGB_HUI, RGB_HUD, RGB_SAI, RGB_SAD, KC_MUTE, KC_VOLD, KC_VOLU, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, MO(3), KC_TRNS, MO(2), KC_TRNS, KC_TRNS, KC_TRNS),
++	[2] = LAYOUT_65_all(KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_MPLY, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS),
++	[3] = LAYOUT_65_all(KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, RGB_TOG, RGB_MOD, RGB_HUI, RGB_HUD, RGB_SAI, RGB_SAD, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS)
++};
++
++#if defined(ENCODER_ENABLE) && defined(ENCODER_MAP_ENABLE)
++const uint16_t PROGMEM encoder_map[][NUM_ENCODERS][2] = {
++
++};
++#endif // defined(ENCODER_ENABLE) && defined(ENCODER_MAP_ENABLE)
++
++
++
+diff --git a/keyboards/ducky/one2sf/keymaps/wakeful-cloud/keymap.json b/keyboards/ducky/one2sf/keymaps/wakeful-cloud/keymap.json
+new file mode 100644
+index 0000000000..5c57fccc24
+--- /dev/null
++++ b/keyboards/ducky/one2sf/keymaps/wakeful-cloud/keymap.json
+@@ -0,0 +1,295 @@
++{
++  "version": 1,
++  "notes": "",
++  "documentation": "\"This file is a QMK Configurator export. You can import this at <https://config.qmk.fm>. It can also be used directly with QMK's source code.\n\nTo setup your QMK environment check out the tutorial: <https://docs.qmk.fm/#/newbs>\n\nYou can convert this file to a keymap.c using this command: `qmk json2c {keymap}`\n\nYou can compile this keymap using this command: `qmk compile {keymap}`\"\n",
++  "keyboard": "ducky/one2sf/1967st",
++  "keymap": "ducky_one2sf_1967st_layout_all_mine",
++  "layout": "LAYOUT_all",
++  "layers": [
++    [
++      "QK_GESC",
++      "KC_1",
++      "KC_2",
++      "KC_3",
++      "KC_4",
++      "KC_5",
++      "KC_6",
++      "KC_7",
++      "KC_8",
++      "KC_9",
++      "KC_0",
++      "KC_MINS",
++      "KC_EQL",
++      "KC_BSPC",
++      "KC_DEL",
++      "KC_TAB",
++      "KC_Q",
++      "KC_W",
++      "KC_E",
++      "KC_R",
++      "KC_T",
++      "KC_Y",
++      "KC_U",
++      "KC_I",
++      "KC_O",
++      "KC_P",
++      "KC_LBRC",
++      "KC_RBRC",
++      "KC_BSLS",
++      "KC_HOME",
++      "KC_CAPS",
++      "KC_A",
++      "KC_S",
++      "KC_D",
++      "KC_F",
++      "KC_G",
++      "KC_H",
++      "KC_J",
++      "KC_K",
++      "KC_L",
++      "KC_SCLN",
++      "KC_QUOT",
++      "KC_NUHS",
++      "KC_ENT",
++      "KC_END",
++      "KC_LSFT",
++      "KC_NUBS",
++      "KC_Z",
++      "KC_X",
++      "KC_C",
++      "KC_V",
++      "KC_B",
++      "KC_N",
++      "KC_M",
++      "KC_COMM",
++      "KC_DOT",
++      "KC_SLSH",
++      "KC_RSFT",
++      "KC_UP",
++      "KC_LCTL",
++      "KC_LGUI",
++      "KC_LALT",
++      "KC_SPC",
++      "KC_RALT",
++      "MO(1)",
++      "KC_RCTL",
++      "KC_LEFT",
++      "KC_DOWN",
++      "KC_RGHT"
++    ],
++    [
++      "KC_GRV",
++      "KC_F1",
++      "KC_F2",
++      "KC_F3",
++      "KC_F4",
++      "KC_F5",
++      "KC_F6",
++      "KC_F7",
++      "KC_F8",
++      "KC_F9",
++      "KC_F10",
++      "KC_F11",
++      "KC_F12",
++      "KC_DEL",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_BTN1",
++      "KC_MS_U",
++      "KC_BTN2",
++      "KC_WH_U",
++      "KC_TRNS",
++      "KC_INS",
++      "KC_TRNS",
++      "KC_UP",
++      "KC_PAUS",
++      "KC_PGUP",
++      "KC_HOME",
++      "KC_PSCR",
++      "KC_TRNS",
++      "KC_PGUP",
++      "KC_TRNS",
++      "KC_MS_L",
++      "KC_MS_D",
++      "KC_MS_R",
++      "KC_WH_D",
++      "KC_TRNS",
++      "KC_SCRL",
++      "KC_LEFT",
++      "KC_DOWN",
++      "KC_RGHT",
++      "KC_PGDN",
++      "KC_END",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_PGDN",
++      "KC_TRNS",
++      "KC_TRNS",
++      "RGB_TOG",
++      "RGB_MOD",
++      "RGB_HUI",
++      "RGB_HUD",
++      "RGB_SAI",
++      "RGB_SAD",
++      "KC_MUTE",
++      "KC_VOLD",
++      "KC_VOLU",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "MO(3)",
++      "KC_TRNS",
++      "MO(2)",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS"
++    ],
++    [
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_MRWD",
++      "KC_MPLY",
++      "KC_MFFD",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS"
++    ],
++    [
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "RGB_TOG",
++      "RGB_MOD",
++      "RGB_HUI",
++      "RGB_HUD",
++      "RGB_SAI",
++      "RGB_SAD",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS",
++      "KC_TRNS"
++    ]
++  ],
++  "author": ""
++}
+\ No newline at end of file
+diff --git a/keyboards/ducky/one2sf/keymaps/wakeful-cloud/readme.md b/keyboards/ducky/one2sf/keymaps/wakeful-cloud/readme.md
+new file mode 100644
+index 0000000000..e50a51aab6
+--- /dev/null
++++ b/keyboards/ducky/one2sf/keymaps/wakeful-cloud/readme.md
+@@ -0,0 +1,16 @@
++# Wakeful Cloud's Ducky One 2 SF Keymap
++
++## Build
++
++1. Run:
++```bash
++qmk compile -kb ducky/one2sf/1967st -km wakeful-cloud
++```
++
++## Flash
++
++1. Hold `D` and `L` while plugging in the keyboard
++2. Run:
++```bash
++nu-isp-cli flash .build/ducky_one2sf_1967st_wakeful-cloud.bin
++```
+\ No newline at end of file
+diff --git a/keyboards/ducky/one2sf/readme.md b/keyboards/ducky/one2sf/readme.md
+index fb37adb7e9..a146c8cfe2 100644
+--- a/keyboards/ducky/one2sf/readme.md
++++ b/keyboards/ducky/one2sf/readme.md
+@@ -1,6 +1,8 @@
+ # One 2 SF
+ 
+-A 65% keyboard by Ducky.
++![One 2 SF](https://www.duckychannel.com.tw/upload/2019_05_142/201905141721227o2fxn6LX1.png)
++
++A 65% keyboard made by Ducky Channel.
+ 
+ The only supported keyboard version at this time is the DKON1967ST.
+ 
+diff --git a/lib/nuc123bsp b/lib/nuc123bsp
+new file mode 160000
+index 0000000000..94ede2400b
+--- /dev/null
++++ b/lib/nuc123bsp
+@@ -0,0 +1 @@
++Subproject commit 94ede2400b2a2e735e6be9ce5997c7072dcaf75e
+diff --git a/nuc123bsp.patch b/nuc123bsp.patch
+new file mode 100644
+index 0000000000..c80d15a221
+--- /dev/null
++++ b/nuc123bsp.patch
+@@ -0,0 +1,114 @@
++diff --git a/Library/Device/Nuvoton/NUC123/Include/NUC123.h b/Library/Device/Nuvoton/NUC123/Include/NUC123.h
++index 8df58f6..7c92d99 100644
++--- a/Library/Device/Nuvoton/NUC123/Include/NUC123.h
+++++ b/Library/Device/Nuvoton/NUC123/Include/NUC123.h
++@@ -8740,23 +8740,23 @@ typedef volatile unsigned long  vu32;       ///< Define 32-bit unsigned volatile
++ /******************************************************************************/
++ /*                         Peripheral header files                            */
++ /******************************************************************************/
++-#include "sys.h"
++-#include "adc.h"
++-#include "fmc.h"
++-#include "gpio.h"
++-#include "i2c.h"
++-#include "pwm.h"
++-#include "spi.h"
++-#include "timer.h"
++-#include "wdt.h"
++-#include "wwdt.h"
++-#include "uart.h"
++-#include "i2s.h"
++-#include "usbd.h"
++-#include "pdma.h"
++-#include "ps2.h"
++-#include "clk.h"
++-#include "crc.h"
+++#include "inc/sys.h"
+++#include "inc/adc.h"
+++#include "inc/fmc.h"
+++#include "inc/gpio.h"
+++#include "inc/i2c.h"
+++#include "inc/pwm.h"
+++#include "inc/spi.h"
+++#include "inc/timer.h"
+++#include "inc/wdt.h"
+++#include "inc/wwdt.h"
+++#include "inc/uart.h"
+++#include "inc/i2s.h"
+++#include "inc/usbd.h"
+++#include "inc/pdma.h"
+++#include "inc/ps2.h"
+++#include "inc/clk.h"
+++#include "inc/crc.h"
++ #endif
++ 
++ 
++diff --git a/Library/StdDriver/src/pdma.c b/Library/StdDriver/src/pdma.c
++index ebe9fe2..63458e7 100644
++--- a/Library/StdDriver/src/pdma.c
+++++ b/Library/StdDriver/src/pdma.c
++@@ -158,9 +158,9 @@ void PDMA_SetTransferMode(uint32_t u32Ch, uint32_t u32Peripheral, uint32_t u32Sc
++     if(u32Peripheral > PDMA_PWM3_RX) /* Memory-to-Memory */
++         pdma->CSR = (pdma->CSR & ~(PDMA_CSR_MODE_SEL_Msk));
++     else if(u32Peripheral > PDMA_I2S_TX) /* Peripheral-to-Memory */
++-        pdma->CSR = (pdma->CSR & ~(PDMA_CSR_MODE_SEL_Msk) | (0x1 << PDMA_CSR_MODE_SEL_Pos));
+++        pdma->CSR = ((pdma->CSR & ~(PDMA_CSR_MODE_SEL_Msk)) | (0x1 << PDMA_CSR_MODE_SEL_Pos));
++     else /* Memory-to-Peripheral */
++-        pdma->CSR = (pdma->CSR & ~(PDMA_CSR_MODE_SEL_Msk) | (0x2 << PDMA_CSR_MODE_SEL_Pos));
+++        pdma->CSR = ((pdma->CSR & ~(PDMA_CSR_MODE_SEL_Msk)) | (0x2 << PDMA_CSR_MODE_SEL_Pos));
++ 
++     switch(u32Peripheral)
++     {
++diff --git a/Library/StdDriver/src/ps2.c b/Library/StdDriver/src/ps2.c
++index 77b0b8d..dcc6bca 100644
++--- a/Library/StdDriver/src/ps2.c
+++++ b/Library/StdDriver/src/ps2.c
++@@ -16,7 +16,7 @@
++ /*---------------------------------------------------------------------------------------------------------*/
++ /* Includes of local headers                                                                               */
++ /*---------------------------------------------------------------------------------------------------------*/
++-#include "ps2.h"
+++#include "inc/ps2.h"
++ 
++ 
++ /** @addtogroup Standard_Driver Standard Driver
++diff --git a/Library/StdDriver/src/retarget.c b/Library/StdDriver/src/retarget.c
++index eeb9fc8..40b5d48 100644
++--- a/Library/StdDriver/src/retarget.c
+++++ b/Library/StdDriver/src/retarget.c
++@@ -45,14 +45,14 @@ enum { r0, r1, r2, r3, r12, lr, pc, psr};
++  */
++ static void stackDump(uint32_t stack[])
++ {   
++-    printf("r0  = 0x%x\n", stack[r0]);
++-    printf("r1  = 0x%x\n", stack[r1]);
++-    printf("r2  = 0x%x\n", stack[r2]);
++-    printf("r3  = 0x%x\n", stack[r3]);
++-    printf("r12 = 0x%x\n", stack[r12]);
++-    printf("lr  = 0x%x\n", stack[lr]);
++-    printf("pc  = 0x%x\n", stack[pc]);
++-    printf("psr = 0x%x\n", stack[psr]);
+++    printf("r0  = 0x%lx\n", stack[r0]);
+++    printf("r1  = 0x%lx\n", stack[r1]);
+++    printf("r2  = 0x%lx\n", stack[r2]);
+++    printf("r3  = 0x%lx\n", stack[r3]);
+++    printf("r12 = 0x%lx\n", stack[r12]);
+++    printf("lr  = 0x%lx\n", stack[lr]);
+++    printf("pc  = 0x%lx\n", stack[pc]);
+++    printf("psr = 0x%lx\n", stack[psr]);
++ }
++ 
++ /**
++diff --git a/Library/StdDriver/src/spi.c b/Library/StdDriver/src/spi.c
++index a31064f..1dd0511 100644
++--- a/Library/StdDriver/src/spi.c
+++++ b/Library/StdDriver/src/spi.c
++@@ -345,7 +345,7 @@ uint32_t SPI_SetBusClock(SPI_T *spi, uint32_t u32BusClock)
++   */
++ void SPI_EnableFIFO(SPI_T *spi, uint32_t u32TxThreshold, uint32_t u32RxThreshold)
++ {
++-    spi->FIFO_CTL = (spi->FIFO_CTL & ~(SPI_FIFO_CTL_TX_THRESHOLD_Msk | SPI_FIFO_CTL_RX_THRESHOLD_Msk) |
+++    spi->FIFO_CTL = ((spi->FIFO_CTL & ~(SPI_FIFO_CTL_TX_THRESHOLD_Msk | SPI_FIFO_CTL_RX_THRESHOLD_Msk)) |
++                      (u32TxThreshold << SPI_FIFO_CTL_TX_THRESHOLD_Pos) |
++                      (u32RxThreshold << SPI_FIFO_CTL_RX_THRESHOLD_Pos));
++ 
+diff --git a/quantum/led_tables.c b/quantum/led_tables.c
+index 9fbe642cc7..73431bd323 100644
+--- a/quantum/led_tables.c
++++ b/quantum/led_tables.c
+@@ -1,5 +1,6 @@
+ /*
+ Copyright 2017 Fred Sundvik
++Copyright 2019 /u/KeepItUnder
+ 
+ This program is free software: you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+@@ -40,4 +41,37 @@ const uint8_t CIE1931_CURVE[256] PROGMEM = {
+ };
+ #endif
+ 
++#ifdef USE_CIE1931_16_CURVE
++// Lightness curve using the CIE 1931 lightness formula
++// Generated by the python script provided in http://jared.geek.nz/2013/feb/linear-led-pwm
++const uint16_t CIE1931_16_CURVE[256] PROGMEM = {
++		 0,      7,    14,    21,    28,    36,    43,   50,     57,    64, 
++		71,     78,    85,    93,   100,   107,   114,   121,   128,   135, 
++	 142,    149,   157,   164,   172,   180,   189,   197,   206,   215, 
++	 225,    234,   244,   254,   265,   276,   287,   298,   310,   322, 
++	 334,    346,   359,   373,   386,   400,   414,   428,   443,   458, 
++	 474,    490,   506,   522,   539,   557,   574,   592,   610,   629, 
++	 648,    668,   688,   708,   729,   750,   771,   793,   815,   838, 
++	 861,    885,   909,   933,   958,   983,  1009,  1035,  1061,  1088, 
++	1116,   1144,  1172,  1201,  1230,  1260,  1290,  1321,  1353,  1384, 
++	1417,   1449,  1482,  1516,  1550,  1585,  1621,  1656,  1693,  1729, 
++	1767,   1805,  1843,  1882,  1922,  1962,  2003,  2044,  2085,  2128, 
++	2171,   2214,  2258,  2303,  2348,  2394,  2440,  2487,  2535,  2583, 
++	2632,   2681,  2731,  2782,  2833,  2885,  2938,  2991,  3045,  3099, 
++	3154,   3210,  3266,  3323,  3381,  3439,  3498,  3558,  3618,  3679, 
++	3741,   3803,  3867,  3930,  3995,  4060,  4126,  4193,  4260,  4328, 
++	4397,   4466,  4536,  4607,  4679,  4752,  4825,  4899,  4973,  5049, 
++	5125,   5202,  5280,  5358,  5437,  5517,  5598,  5680,  5762,  5845, 
++	5929,   6014,  6100,  6186,  6273,  6361,  6450,  6540,  6630,  6722, 
++	6814,   6907,  7001,  7095,  7191,  7287,  7385,  7483,  7582,  7682, 
++	7782,   7884,  7986,  8090,  8194,  8299,  8405,  8512,  8620,  8729, 
++	8838,   8949,  9060,  9173,  9286,  9400,  9516,  9632,  9749,  9867, 
++	9986,  10106, 10227, 10348, 10471, 10595, 10720, 10845, 10972, 11100, 
++	11228, 11358, 11489, 11620, 11753, 11887, 12021, 12157, 12294, 12432, 
++	12570, 12710, 12851, 12993, 13136, 13279, 13424, 13570, 13718, 13866, 
++	14015, 14165, 14317, 14469, 14622, 14777, 14933, 15089, 15247, 15406, 
++	15566, 15727, 15890, 16053, 16217, 16383
++};
++#endif
++
+ // clang-format on
+diff --git a/quantum/led_tables.h b/quantum/led_tables.h
+index cd3e5d74c1..8f43af7617 100644
+--- a/quantum/led_tables.h
++++ b/quantum/led_tables.h
+@@ -1,5 +1,6 @@
+ /*
+ Copyright 2017 Fred Sundvik
++Copyright 2019 /u/KeepItUnder
+ 
+ This program is free software: you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+@@ -21,3 +22,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ #ifdef USE_CIE1931_CURVE
+ extern const uint8_t CIE1931_CURVE[] PROGMEM;
+ #endif
++
++#ifdef USE_CIE1931_16_CURVE
++extern const uint16_t CIE1931_16_CURVE[] PROGMEM;
++#endif
+\ No newline at end of file
+diff --git a/quantum/rgb_matrix/rgb_matrix.h b/quantum/rgb_matrix/rgb_matrix.h
+index 62078f6e60..01fcd2fefb 100644
+--- a/quantum/rgb_matrix/rgb_matrix.h
++++ b/quantum/rgb_matrix/rgb_matrix.h
+@@ -1,6 +1,7 @@
+ /* Copyright 2017 Jason Williams
+  * Copyright 2017 Jack Humbert
+  * Copyright 2018 Yiancar
++ * Copyright 2019 /u/KeepItUnder
+  *
+  * This program is free software: you can redistribute it and/or modify
+  * it under the terms of the GNU General Public License as published by
+@@ -40,6 +41,8 @@
+ #    include "aw20216.h"
+ #elif defined(WS2812)
+ #    include "ws2812.h"
++#elif defined (MBI5043)
++#    include "mbi5043.h"
+ #endif
+ 
+ #ifndef RGB_MATRIX_LED_FLUSH_LIMIT
+diff --git a/quantum/rgb_matrix/rgb_matrix_drivers.c b/quantum/rgb_matrix/rgb_matrix_drivers.c
+index 5b81915845..276ccd70ba 100644
+--- a/quantum/rgb_matrix/rgb_matrix_drivers.c
++++ b/quantum/rgb_matrix/rgb_matrix_drivers.c
+@@ -398,4 +398,21 @@ const rgb_matrix_driver_t rgb_matrix_driver = {
+     .set_color     = setled,
+     .set_color_all = setled_all,
+ };
++#elif defined(MBI5043)
++static void init( void )
++{
++    MBI5043_init();
++}
++
++static void flush( void )
++{
++    MBI5043_write_pwm_buffers();
++}
++
++const rgb_matrix_driver_t rgb_matrix_driver = {
++    .init = init,
++    .flush = flush,
++    .set_color = MBI5043_set_color,
++    .set_color_all = MBI5043_set_color_all,
++};
+ #endif

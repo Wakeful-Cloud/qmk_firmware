@@ -29,4 +29,6 @@ BACKLIGHT_ENABLE = no       # Enable keyboard backlight functionality
 RGBLIGHT_ENABLE = no        # Enable keyboard RGB underglow
 AUDIO_ENABLE = no           # Audio output
 DIP_SWITCH_ENABLE = yes
-
+CIE1931_CURVE = no 	        # Use the 16-bit CIE1931 curve instead
+RGB_MATRIX_ENABLE = yes     # Use RGB matrix
+RGB_MATRIX_DRIVER = MBI5043 # Use the MBI5043 driver
